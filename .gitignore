@@ -1,0 +1,27 @@
+# Daten: nie ins Git (Rohvideos, Clips, Bilder, Ergebnisse, Modelle)
+data/
+ergebnis/
+*.mp4
+*.mts
+*.m2ts
+*.mov
+*.avi
+*.mkv
+*.pt
+*.onnx
+*.xml.bin
+
+# Python
+.venv/
+__pycache__/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+build/
+dist/
+
+# Editor / System
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

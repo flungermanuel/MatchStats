@@ -1,0 +1,4 @@
+# Standard-Parameter. Eigene Datei per `matchstats run ... --config meine.toml` angeben.
+
+# Erkennung nur auf jedem N-ten Bild; das Tracking überbrückt die Lücken.
+detect_every = 5
