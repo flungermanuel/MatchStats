@@ -6,13 +6,22 @@ matchstats erzeugt aus eigenen Videoaufnahmen von Ligaspielen taktische Auswertu
 Maßgebliche Dokumente (vor jeder Aufgabe die passende lesen):
 - `docs/projektbrief.md`: Ziel, Architektur, Prinzipien, Roadmap.
 - `docs/woche1-spezifikation.md`: aktuelle Aufgaben T0 bis T7 mit Abnahmekriterien (AK) und Messregeln.
+- `docs/architektur.md`: Systemkarte (siehe unten).
 Bei Widerspruch zwischen Code und Spezifikation gilt die Spezifikation. Ändere sie nicht stillschweigend: Schlage die Änderung vor und warte auf mein Ja.
 
 ## Zusammenarbeit
-- Ich bin Informatikstudent (5. Semester), kein sicherer Programmierer. Ziel des Projekts ist auch, sauberes Vibe Coding zu lernen: Ich führe Regie, du implementierst, Tests sichern die Qualität.
+- Ich bin Informatikstudent (5. Semester), kein sicherer Programmierer. Das ist ein Vibe-Coding-Projekt: Ich führe Regie, du implementierst. Ich lese den Code **nicht Zeile für Zeile** und muss ihn nicht im Detail verstehen. Ich muss aber verstehen, **wie die Teile zusammenwirken**, und mich auf Tests und sichtbare Ergebnisse verlassen können. Diese Regel ersetzt "Diffs selbst lesen" aus Brief und Spezifikation.
 - Antworte auf Deutsch, kurz und verständlich. Bezeichner im Code auf Englisch, Kommentare und Doku auf Deutsch.
-- Erkläre vor dem Commit in einfachen Worten, was sich geändert hat und warum. Erkläre neue Begriffe oder Bibliotheken beim ersten Auftreten in ein, zwei Sätzen.
+- Erkläre auf Architekturebene, nicht auf Codeebene: Welche Bausteine gibt es, was geht hinein, was kommt heraus, wie hängen sie zusammen. Keine Zeile-für-Zeile-Erklärungen, außer ich frage danach. Neue Begriffe oder Bibliotheken beim ersten Auftreten in ein, zwei Sätzen erklären.
 - Wenn etwas unklar ist, frage nach, statt zu raten.
+
+## Qualität ohne Code-Review durch mich
+Weil ich den Code nicht prüfe, bist du für seine Qualität verantwortlich:
+- Halte den Code einfach: kleine Module mit einer klaren Aufgabe, Typangaben, keine unnötige Cleverness.
+- Vor jedem Commit laufen alle Tests (`pytest`) und `ruff check .`. Committe nie mit roten Tests.
+- Schreibe Tests so, dass ihre Namen als Anforderung lesbar sind (z. B. `test_tracker_keeps_id_when_player_is_briefly_hidden`).
+- Zeige mir zusätzlich zu den Tests immer ein sichtbares Ergebnis, das ich selbst beurteilen kann (Bild, Video, Tabelle).
+- Sag offen, was du nicht sicher weißt, nicht getestet hast oder nur geraten hast. Verschweige keine Schwächen.
 
 ## Ablauf pro Aufgabe
 1. Aufgabe und Abnahmekriterium aus der Spezifikation in eigenen Worten zusammenfassen, Rückfragen stellen.
@@ -20,7 +29,16 @@ Bei Widerspruch zwischen Code und Spezifikation gilt die Spezifikation. Ändere 
 3. Zuerst den Test schreiben (er bildet das Abnahmekriterium ab), dann die Umsetzung.
 4. Ergebnisse an echten Bildern zeigen (Ausgabebilder anlegen), nicht nur an Zahlen.
 5. Ein Commit pro Aufgabe mit klarer Message. Keine Arbeit über die aktuelle Aufgabe hinaus.
-6. Am Ende: kurze Entscheidungsnotiz in `docs/entscheidungen/` (Was, Warum, Alternativen), falls eine Architekturentscheidung gefallen ist.
+6. Systemkarte aktualisieren und die Erklärung nach jeder Aufgabe geben (siehe unten).
+7. Am Ende: kurze Entscheidungsnotiz in `docs/entscheidungen/` (Was, Warum, Alternativen), falls eine Architekturentscheidung gefallen ist.
+
+## Systemkarte und Erklärung nach jeder Aufgabe
+- Pflege `docs/architektur.md` als kurze Systemkarte (eine Seite): Bausteine und Schichten (siehe "Systemarchitektur"), Datenfluss (Eingabe -> Pipeline-Stufen -> Ausgabe), Dateiformate zwischen den Stufen, wo was im Repo liegt. Aktualisiere sie bei jeder Aufgabe, die etwas daran ändert.
+- Nach jeder Aufgabe gibst du mir eine Erklärung in dieser Form, maximal etwa 10 Zeilen:
+  1. Was ist neu (ein Satz).
+  2. Wo sitzt es im Gesamtbild (welcher Baustein bzw. welche Schicht, was geht rein, was kommt raus).
+  3. Wie prüfe ich selbst, dass es funktioniert (ein Befehl oder eine Datei zum Ansehen).
+  4. Was ist bewusst noch einfach oder unvollständig.
 
 ## Modellwahl (Kontingent schonen, Claude Pro)
 Standard ist **Sonnet 5.5**. Du kannst das Modell nicht selbst wechseln: Sag mir rechtzeitig und konkret Bescheid ("Wechsle jetzt mit /model auf Opus, weil ...") und sag auch, wann ich zurückwechseln kann.
