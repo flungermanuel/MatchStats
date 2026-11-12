@@ -31,7 +31,7 @@ Heatmaps pro Spieler und Team, Durchschnittspositionen (Formation), Kompaktheit 
 - Kalibrierung: wenige manuelle Schlüsselbilder plus automatische Fortführung, Prüfung auf Drift.
 ## Roadmap
 Die "Wochen" sind Arbeitseinheiten, bei 8 h pro Woche etwa das 2- bis 3-fache an Kalenderzeit.
-- Woche 0 bis 1: Testset aus eigenen Spielen, Erkennen, Tracken, Teamzuordnung auf 60-Sekunden-Clips, Ergebnis ist ein annotiertes Video plus Bericht (siehe claude/woche1-spezifikation.md).
+- Woche 0 bis 1: Testset aus eigenen Spielen, Erkennen, Tracken, Teamzuordnung auf 60-Sekunden-Clips, Ergebnis ist ein annotiertes Video plus Bericht (siehe docs/woche1-spezifikation.md).
 - Woche 2: Kalibrierwerkzeug und Minimap.
 - Woche 3 bis 4: Dienst mit Upload, Warteschlange, Fortschritt, Viewer mit Heatmaps.
 - Woche 5: Prüfstand für die Bildverarbeitung über ganze Spiele.

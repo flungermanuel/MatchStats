@@ -47,7 +47,7 @@ Kalibrierung und Minimap (Woche 2), Heatmaps, Weboberfläche, Warteschlange, Age
 - Git-Repository "matchstats" mit README, CLAUDE.md (Arbeitsregeln für den Agenten), Ordnern für Quellcode, Tests, Daten (nicht im Git, per .gitignore), Doku/Entscheidungen (`docs/`).
 - CLAUDE.md enthält mindestens: Arbeitsregeln aus dem Brief (erst Test, kleine Schritte, ein Commit pro Aufgabe), Windows/CPU-Umgebung, Video nur Bild für Bild lesen, Rohvideos nie ins Git, keine Spielernamen, Detektor hinter Schnittstelle.
 - Ein Befehl startet die Verarbeitung: `matchstats run clip.mp4 --out ergebnis/` (in T1 darf er nur ein leeres, valides Ergebnis erzeugen).
-- AK: Frischer Klon plus höchstens drei Befehle ergibt eine laufende Umgebung; der Testbefehl läuft grün.
+- AK: Frischer Klon plus die im README beschriebenen Einrichtungsschritte ergibt eine laufende Umgebung; der Testbefehl läuft grün.
 ### T2 Testset (ca. 3 bis 4 h, größter manueller Brocken)
 - Pro Clip 20 Bilder (gleichmäßig gezogen, siehe Messregeln), alle Feldspieler, Torhüter und Schiedsrichter mit Boxen markiert, jeweils mit Klasse (Team A, Team B, Torhüter, Schiedsrichter).
 - Vorbeschriften durch den Detektor und anschließendes Korrigieren ist erlaubt, aber jede Box wird wirklich geprüft. Der Bericht nennt, dass vorbeschriftet wurde.
