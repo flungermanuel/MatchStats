@@ -40,6 +40,18 @@ Weil ich den Code nicht prüfe, bist du für seine Qualität verantwortlich:
   3. Wie prüfe ich selbst, dass es funktioniert (ein Befehl oder eine Datei zum Ansehen).
   4. Was ist bewusst noch einfach oder unvollständig.
 
+## Team (Agenten)
+Ich (Hauptsitzung) bin Lead: Ich bespreche mit dem Entwickler, zerlege Aufgaben, delegiere, prüfe die Berichte der Agenten und bin verantwortlich für das Ergebnis. Subagents in `.claude/agents/`:
+- `architect` (nur lesen): prüft Plan und Schichten gegen die Spezifikation, entwirft Entscheidungsnotizen.
+- `backend-engineer`: setzt in `src/` um, nachdem Plan und Test stehen.
+- `frontend-engineer`: inaktiv, bis die Spezifikation eine Oberfläche vorsieht.
+- `test-engineer` (nur `tests/`): schreibt zuerst den Test aus dem AK.
+- `code-reviewer` (nur lesen): unabhängiges Review vor jedem Commit.
+- `product-owner` (nur `docs/ideen.md`): schlägt Features vor, ändert nie die Spezifikation.
+- `doc-keeper` (nur `docs/`): Systemkarte und Erklärung.
+Skills: `/aufgabe-start <Aufgabe>` (Schritt 1 und 2 des Ablaufs) und `/aufgabe-abschluss <Aufgabe>` (Review, Tests, Doku, Commit-Vorschlag). Ein Hook (`.claude/hooks/pre_commit_check.py`) blockiert `git commit`, solange `pytest` oder `ruff check .` rot sind.
+Regeln: Nur so viele Agenten aufrufen, wie die Aufgabe braucht (Kontingent). Agenten ändern keine Spezifikation und arbeiten nicht über die aktuelle Aufgabe hinaus. Der Lead meldet offen, was Agenten nicht geprüft haben.
+
 ## Modellwahl (Kontingent schonen, Claude Pro)
 Standard ist **Sonnet 5.5**. Du kannst das Modell nicht selbst wechseln: Sag mir rechtzeitig und konkret Bescheid ("Wechsle jetzt mit /model auf Opus, weil ...") und sag auch, wann ich zurückwechseln kann.
 - **Opus empfehlen**, wenn: eine Architekturentscheidung ansteht, die später schwer zu ändern ist (z. B. Schnittstelle des Detektors, Format der Spurdatei, Pipeline-Aufbau); ein Fehler nach zwei erfolglosen Versuchen nicht gelöst ist; eine Änderung viele Dateien (grob mehr als 5) gleichzeitig betrifft. Danach zurück auf Sonnet.
