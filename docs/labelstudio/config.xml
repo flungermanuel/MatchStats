@@ -1,0 +1,11 @@
+<!-- Beschriftungsschema für Label Studio (T2): Personen mit Rechteck-Boxen in vier Klassen.
+     Einfügen unter: Projekt -> Settings -> Labeling Interface -> Code. -->
+<View>
+  <Image name="image" value="$image" zoom="true" zoomControl="true" rotateControl="false"/>
+  <RectangleLabels name="label" toName="image" strokeWidth="2">
+    <Label value="team_a" background="#1f77b4" hotkey="1"/>
+    <Label value="team_b" background="#d62728" hotkey="2"/>
+    <Label value="goalkeeper" background="#2ca02c" hotkey="3"/>
+    <Label value="referee" background="#ffbf00" hotkey="4"/>
+  </RectangleLabels>
+</View>

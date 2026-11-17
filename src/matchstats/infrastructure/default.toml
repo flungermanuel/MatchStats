@@ -2,3 +2,6 @@
 
 # Erkennung nur auf jedem N-ten Bild; das Tracking überbrückt die Lücken.
 detect_every = 5
+
+# Testbilder pro Clip (gleichmäßig verteilt), für `matchstats sample-frames`.
+frames_per_clip = 20

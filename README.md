@@ -3,12 +3,13 @@
 Taktische Auswertung aus eigenen Videoaufnahmen von Ligaspielen: Positionsdaten, Heatmaps,
 Formation, Kompaktheit. Leitprinzip: **Daten -> Erkenntnisse -> Darstellung.**
 
-Stand: Woche 1, Aufgabe T1 (Projektgerüst). Der Befehl `matchstats run` erzeugt bisher nur ein
-leeres, gültiges Ergebnis. Erkennen, Tracken und Teamzuordnung kommen in T3 bis T5.
+Stand: Woche 1, Aufgabe T2 (Testset). Der Befehl `matchstats run` erzeugt bisher nur ein
+leeres, gültiges Ergebnis. Der Befehl `matchstats sample-frames` zieht die Testbilder (siehe
+"Testset"). Erkennen, Tracken und Teamzuordnung kommen in T3 bis T5.
 
 ## Voraussetzungen
 - Windows 11, Python 3.12 oder neuer (getestet mit 3.13), Git
-- ffmpeg (ab T3 nötig): `winget install Gyan.FFmpeg`
+- ffmpeg (inkl. ffprobe): `winget install Gyan.FFmpeg`
 - Keine NVIDIA-GPU nötig, alles läuft auf der CPU.
 
 ## Einrichten (PowerShell)
@@ -20,12 +21,46 @@ py -3.13 -m venv .venv
 pip install -e ".[dev]"
 ```
 
+**Nur für das Beschriften (T2):** Label Studio (Apache 2.0) läuft in einer eigenen Umgebung, weil es
+viele Bibliotheken mitbringt:
+```powershell
+py -3.13 -m venv .venv-labelstudio
+.venv-labelstudio\Scripts\python.exe -m pip install label-studio
+```
+
 ## Benutzen
 ```powershell
 matchstats run clip.mp4 --out ergebnis/
 ```
 Ergebnis: `ergebnis/tracks.json` (Format siehe `src/matchstats/domain/result.py`).
 Eigene Parameter: `--config meine.toml` (Standardwerte: `src/matchstats/infrastructure/default.toml`).
+
+## Testset (T2)
+Das Testset besteht aus 60 von Hand beschrifteten Bildern: 20 pro Clip, gleichmäßig gezogen
+(jeweils die Mitte von 20 gleich langen Abschnitten, nicht von Hand ausgewählt).
+
+1. Bilder ziehen (alle liegen unter `data/`, nicht im Git):
+   ```powershell
+   matchstats sample-frames data\clips\clip1.mp4 data\clips\clip2.mp4 data\clips\clip3.mp4 --out data\testset\images
+   ```
+   Ergebnis: `data\testset\images\clip1_f00038.png` usw. (Zahl = Bildnummer im Clip) und
+   `manifest.json` (Clip, Zeitpunkt, Bildnummer, Dateiname).
+2. Beschriften in Label Studio (Start: `.\tools\start_labelstudio.ps1`, dann
+   http://localhost:8080). Schema: [docs/labelstudio/config.xml](docs/labelstudio/config.xml).
+3. Export als **COCO** nach `data\testset\coco.json`.
+
+**Festes Format (COCO-JSON, Pixelwerte):**
+- `images`: `id`, `file_name`, `width` = 1920, `height` = 1080. Der Dateiname muss auf
+  `clip<N>_f<5 Ziffern>.png` enden (Label Studio setzt davor ein Präfix, das beim Laden entfernt wird).
+- `annotations`: `id`, `image_id`, `category_id`, `bbox` = `[x, y, Breite, Höhe]` in Pixeln, Ursprung links oben.
+  Die Box darf höchstens 1 Pixel über den Bildrand hinausragen (Rundung beim Export).
+- `categories`: `id`, `name`. Erlaubte Namen (Zuordnung über den Namen, nicht über die ID):
+  `team_a`, `team_b`, `goalkeeper`, `referee`.
+- Alle Spieler im Bild bekommen eine Box. Bilder ohne Person sind nur in Ausnahmefällen erlaubt.
+
+Das Format prüft `tests/test_testset_loader.py` (synthetische Daten). `tests/test_testset_real.py`
+prüft das echte Testset (60 Bilder, je 20 pro Clip, alle vier Klassen) und wird übersprungen,
+solange `data\testset\coco.json` fehlt. Lader: `matchstats.infrastructure.testset_loader.load_testset`.
 
 ## Entwickeln
 ```powershell

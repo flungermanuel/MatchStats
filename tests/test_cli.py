@@ -4,6 +4,7 @@ import json
 import subprocess
 import sys
 
+from conftest import requires_ffmpeg
 from matchstats.cli import main
 
 
@@ -31,6 +32,46 @@ def test_run_fails_for_missing_clip(tmp_path):
 
     assert code != 0
     assert not (tmp_path / "out" / "tracks.json").exists()
+
+
+@requires_ffmpeg
+def test_sample_frames_command_writes_frames_and_manifest(make_clip, tmp_path, capsys):
+    out = tmp_path / "frames"
+    code = main(["sample-frames", str(make_clip("clip1.mp4")), "--out", str(out), "--count", "3"])
+
+    assert code == 0
+    assert len(list(out.glob("clip1_f*.png"))) == 3
+    assert len(json.loads((out / "manifest.json").read_text(encoding="utf-8"))) == 3
+    assert capsys.readouterr().out.strip() != ""
+
+
+@requires_ffmpeg
+def test_sample_frames_command_uses_frames_per_clip_from_settings_by_default(make_clip, tmp_path):
+    out = tmp_path / "frames"
+    code = main(["sample-frames", str(make_clip("clip1.mp4")), "--out", str(out)])
+
+    assert code == 0
+    assert len(list(out.glob("clip1_f*.png"))) == 20
+
+
+@requires_ffmpeg
+def test_sample_frames_command_accepts_several_clips(make_clip, tmp_path):
+    out = tmp_path / "frames"
+    clips = [str(make_clip("clip1.mp4")), str(make_clip("clip2.mp4"))]
+    code = main(["sample-frames", *clips, "--out", str(out), "--count", "2"])
+
+    assert code == 0
+    assert len(list(out.glob("clip1_f*.png"))) == 2
+    assert len(list(out.glob("clip2_f*.png"))) == 2
+
+
+def test_sample_frames_command_fails_with_exit_2_for_missing_clip(tmp_path, capsys):
+    code = main(
+        ["sample-frames", str(tmp_path / "gibt_es_nicht.mp4"), "--out", str(tmp_path / "f")]
+    )
+
+    assert code == 2
+    assert capsys.readouterr().err.strip() != ""
 
 
 def test_module_entry_point_works(tmp_path):

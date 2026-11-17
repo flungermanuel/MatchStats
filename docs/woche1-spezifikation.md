@@ -1,4 +1,4 @@
-# Woche 1: Von Video zu annotiertem Video (Spezifikation v1.1, 12.11.2026)
+# Woche 1: Von Video zu annotiertem Video (Spezifikation v1.2, 16.11.2026)
  
 Projekt: matchstats. Stand: v1.1 ersetzt v1. Änderungen gegenüber v0 und v1 stehen am Ende.
  
@@ -41,7 +41,7 @@ Kalibrierung und Minimap (Woche 2), Heatmaps, Weboberfläche, Warteschlange, Age
 - 3 Clips à 60 s aus der .MTS-Datei schneiden, deinterlaced, ohne Ton, z. B.:
   `ffmpeg -ss 00:01:00 -t 60 -i quelle.MTS -an -vf yadif=0 -c:v libx264 -crf 18 clip1.mp4`
   (Startzeiten für clip2/clip3 z. B. 00:05:00 und 00:09:00; vorher kurz ansehen, dass dort kein Torjubel-Zoom ist.)
-- Beschriftungswerkzeug wählen (Vorschlag: Label Studio, lokal per pip; Alternative CVAT braucht Docker) und Format festlegen (Vorschlag: COCO-JSON).
+- Beschriftungswerkzeug: Label Studio (lokal per pip, eigene Umgebung; Alternative CVAT braucht Docker). Format: COCO-JSON. Beides am 16.11.2026 festgelegt, siehe `docs/entscheidungen/0003-testset-label-studio.md`.
 - AK: 3 Clips liegen in einem lokalen Ordner als progressive 1080p25-Dateien (per ffprobe geprüft, `field_order=progressive`); das Beschriftungswerkzeug ist gewählt.
 ### T1 Projektgerüst (ca. 1 bis 2 h)
 - Git-Repository "matchstats" mit README, CLAUDE.md (Arbeitsregeln für den Agenten), Ordnern für Quellcode, Tests, Daten (nicht im Git, per .gitignore), Doku/Entscheidungen (`docs/`).
@@ -51,7 +51,7 @@ Kalibrierung und Minimap (Woche 2), Heatmaps, Weboberfläche, Warteschlange, Age
 ### T2 Testset (ca. 3 bis 4 h, größter manueller Brocken)
 - Pro Clip 20 Bilder (gleichmäßig gezogen, siehe Messregeln), alle Feldspieler, Torhüter und Schiedsrichter mit Boxen markiert, jeweils mit Klasse (Team A, Team B, Torhüter, Schiedsrichter).
 - Vorbeschriften durch den Detektor und anschließendes Korrigieren ist erlaubt, aber jede Box wird wirklich geprüft. Der Bericht nennt, dass vorbeschriftet wurde.
-- Festes Dateiformat, dokumentiert im README.
+- Festes Dateiformat (COCO-JSON, Export aus Label Studio, vier Klassen), dokumentiert im README.
 - AK: 60 beschriftete Bilder liegen vor; ein Test prüft das Format.
 ### T3 Erkennung (ca. 2 bis 3 h plus Rechenzeit)
 - Personen-Detektor hinter einer austauschbaren Schnittstelle. Zu testen: YOLO (schneller Start, AGPL-3.0) und RF-DETR (Apache 2.0), jeweils kleine Modellgröße.
@@ -94,9 +94,10 @@ Alles im Git, Tests grün, Bericht erstellt, alle Änderungen vom Entwickler sel
 - Nutzungsrechte: Absprache mit dem Chef ist nur mündlich. Für Woche 1 unkritisch (alles lokal), muss aber schriftlich stehen, bevor Ergebnisse gezeigt oder weitergegeben werden.
 ## Offene Punkte
 - Weiteres Material: Am Sonntag (15.11.2026) wird ein weiteres Spiel gefilmt. Danach Testset, Brief und Beschreibung anpassen (Auflösung, Perspektive).
-- Beschriftungswerkzeug und Format final bestätigen (T0).
 - Grenze für nah/fern in Boxhöhe nach Sichtung der Daten festlegen.
 ## Änderungen
+**v1.2 gegenüber v1.1 (16.11.2026):** Beschriftungswerkzeug (Label Studio) und Format (COCO-JSON) von Vorschlag auf festgelegt gesetzt (T0, T2), entsprechender offener Punkt entfernt. Inhaltlich keine weitere Änderung.
+
 **v1.1 gegenüber v1:** Material festgestellt (.MTS, 1920x1080, 25 fps, interlaced, 12 min), kein 4K. Deinterlacing mit ffmpeg-Befehl in T0 und als AK, alle Clips aus einem Spiel als Einschränkung, Risiken und offene Punkte entsprechend ergänzt. Projekt- und Befehlsname ist jetzt matchstats (statt footy), Beschriftungswerkzeug Label Studio vorgeschlagen.
  
 **v1 gegenüber v0:**
