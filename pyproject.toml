@@ -8,10 +8,13 @@ version = "0.1.0"
 description = "Taktische Auswertung aus eigenen Fussball-Videoaufnahmen"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = ["numpy>=2", "pillow>=11"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "ruff>=0.6"]
+# Detektoren (torch zusätzlich von https://download.pytorch.org/whl/cpu für CPU-Version):
+detect = ["rfdetr>=1.12"]  # Apache 2.0, Hauptdetektor
+yolo = ["ultralytics>=8.3"]  # AGPL-3.0, nur optional
 
 [project.scripts]
 matchstats = "matchstats.cli:console_main"

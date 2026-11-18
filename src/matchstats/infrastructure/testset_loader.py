@@ -122,6 +122,5 @@ def load_testset(
         target["boxes"].append(box)
 
     return [
-        LabeledImage(i["name"], i["width"], i["height"], tuple(i["boxes"]))
-        for i in images.values()
+        LabeledImage(i["name"], i["width"], i["height"], tuple(i["boxes"])) for i in images.values()
     ]

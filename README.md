@@ -3,9 +3,10 @@
 Taktische Auswertung aus eigenen Videoaufnahmen von Ligaspielen: Positionsdaten, Heatmaps,
 Formation, Kompaktheit. Leitprinzip: **Daten -> Erkenntnisse -> Darstellung.**
 
-Stand: Woche 1, Aufgabe T2 (Testset). Der Befehl `matchstats run` erzeugt bisher nur ein
-leeres, gültiges Ergebnis. Der Befehl `matchstats sample-frames` zieht die Testbilder (siehe
-"Testset"). Erkennen, Tracken und Teamzuordnung kommen in T3 bis T5.
+Stand: Woche 1, Aufgabe T3 (Erkennung). Der Befehl `matchstats run` erzeugt bisher nur ein
+leeres, gültiges Ergebnis. `matchstats sample-frames` zieht die Testbilder (siehe "Testset"),
+`matchstats evaluate` misst die Detektoren (siehe "Erkennung messen"). Tracking und
+Teamzuordnung kommen in T4 und T5.
 
 ## Voraussetzungen
 - Windows 11, Python 3.12 oder neuer (getestet mit 3.13), Git
@@ -61,6 +62,19 @@ Das Testset besteht aus 60 von Hand beschrifteten Bildern: 20 pro Clip, gleichm�
 Das Format prüft `tests/test_testset_loader.py` (synthetische Daten). `tests/test_testset_real.py`
 prüft das echte Testset (60 Bilder, je 20 pro Clip, alle vier Klassen) und wird übersprungen,
 solange `data\testset\coco.json` fehlt. Lader: `matchstats.infrastructure.testset_loader.load_testset`.
+
+## Erkennung messen (T3)
+Detektoren sind optionale Zusatzpakete (torch als CPU-Version):
+```powershell
+pip install -e ".[detect]" --extra-index-url https://download.pytorch.org/whl/cpu   # RF-DETR (Apache 2.0)
+pip install -e ".[yolo]"                                                           # YOLO (AGPL-3.0), optional
+matchstats evaluate --out data\ergebnis\t3                                          # alle Varianten
+matchstats evaluate --detectors rfdetr --out data\ergebnis\t3                       # nur RF-DETR
+```
+Gemessen wird jeder Detektor als Ganzbild und als Kacheln auf den 60 Testbildern. Ergebnis:
+`report.md` (Tabelle), `report.json` und Beispielbilder in `overlays\` (grün = getroffen,
+gelb = verpasst, rot = Erkennung). Die Gewichte werden beim ersten Lauf heruntergeladen.
+Parameter (Modellgröße, Score, Kacheln) stehen in `src\matchstats\infrastructure\default.toml`.
 
 ## Entwickeln
 ```powershell

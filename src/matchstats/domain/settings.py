@@ -9,9 +9,24 @@ class Settings:
     detect_every: int = 5
     # Anzahl Testbilder, die pro Clip gleichmäßig gezogen werden.
     frames_per_clip: int = 20
+    # Erkennung (T3): Modellgröße ("nano", "small", "medium"), Mindest-Score einer Erkennung.
+    detector_model: str = "small"
+    score_threshold: float = 0.3
+    # Kachel-Variante: Kantenlänge in Pixeln, Überlappungsanteil, IoU-Schwelle fürs Zusammenführen.
+    tile_size: int = 640
+    tile_overlap: float = 0.2
+    nms_iou: float = 0.5
 
     def __post_init__(self) -> None:
         if self.detect_every < 1:
             raise ValueError("detect_every muss mindestens 1 sein")
         if self.frames_per_clip < 1:
             raise ValueError("frames_per_clip muss mindestens 1 sein")
+        if not 0 <= self.score_threshold <= 1:
+            raise ValueError("score_threshold muss zwischen 0 und 1 liegen")
+        if self.tile_size < 1:
+            raise ValueError("tile_size muss mindestens 1 sein")
+        if not 0 <= self.tile_overlap < 1:
+            raise ValueError("tile_overlap muss in [0, 1) liegen")
+        if not 0 <= self.nms_iou <= 1:
+            raise ValueError("nms_iou muss zwischen 0 und 1 liegen")

@@ -84,3 +84,11 @@ def test_module_entry_point_works(tmp_path):
 
     assert proc.returncode == 0, proc.stderr
     assert (out / "tracks.json").exists()
+
+
+def test_evaluate_reports_missing_testset_with_exit_code_2(tmp_path):
+    code = main(
+        ["evaluate", "--testset", str(tmp_path / "fehlt.json"), "--out", str(tmp_path / "out")]
+    )
+
+    assert code == 2

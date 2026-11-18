@@ -1,4 +1,4 @@
-"""Kommandozeile: `matchstats run` und `matchstats sample-frames`. Verdrahtet die Schichten."""
+"""Kommandozeile: `run`, `sample-frames` und `evaluate`. Verdrahtet die Schichten."""
 
 import argparse
 import sys
@@ -6,6 +6,7 @@ from pathlib import Path
 
 from matchstats.application.pipeline import run_pipeline
 from matchstats.infrastructure.config_loader import load_settings
+from matchstats.infrastructure.evaluation_job import DETECTOR_NAMES, run_evaluation
 from matchstats.infrastructure.frame_sampler import FrameSamplingError, sample_frames
 from matchstats.infrastructure.result_store import save_result
 
@@ -24,6 +25,14 @@ def build_parser() -> argparse.ArgumentParser:
     sample.add_argument("--out", type=Path, required=True, help="Ausgabeordner für PNGs")
     sample.add_argument("--count", type=int, default=None, help="Bilder pro Clip")
     sample.add_argument("--config", type=Path, default=None, help="Eigene Konfiguration (TOML)")
+
+    evaluate = sub.add_parser("evaluate", help="Detektoren auf dem beschrifteten Testset messen")
+    evaluate.add_argument("--testset", type=Path, default=Path("data/testset/coco.json"))
+    evaluate.add_argument("--images", type=Path, default=Path("data/testset/images"))
+    evaluate.add_argument("--out", type=Path, required=True, help="Ausgabeordner für den Bericht")
+    evaluate.add_argument("--detectors", nargs="+", choices=DETECTOR_NAMES, default=DETECTOR_NAMES)
+    evaluate.add_argument("--overlays", type=int, default=6, help="Beispielbilder je Variante")
+    evaluate.add_argument("--config", type=Path, default=None, help="Eigene Konfiguration (TOML)")
     return parser
 
 
@@ -56,10 +65,25 @@ def _sample_frames_command(args: argparse.Namespace) -> int:
     return 0
 
 
+def _evaluate_command(args: argparse.Namespace) -> int:
+    for path in (args.testset, args.images):
+        if not path.exists():
+            print(f"Fehler: nicht gefunden: {path}", file=sys.stderr)
+            return 2
+    run_evaluation(
+        args.testset, args.images, args.out, load_settings(args.config),
+        tuple(args.detectors), args.overlays,
+    )  # fmt: skip
+    print(f"Fertig: {args.out / 'report.md'}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if args.command == "sample-frames":
         return _sample_frames_command(args)
+    if args.command == "evaluate":
+        return _evaluate_command(args)
     return _run_command(args)
 
 
