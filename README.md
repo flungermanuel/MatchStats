@@ -76,6 +76,19 @@ Gemessen wird jeder Detektor als Ganzbild und als Kacheln auf den 60 Testbildern
 gelb = verpasst, rot = Erkennung). Die Gewichte werden beim ersten Lauf heruntergeladen.
 Parameter (Modellgröße, Score, Kacheln) stehen in `src\matchstats\infrastructure\default.toml`.
 
+## Bibliothek: Spiel, Clip, Lauf (T3b)
+Videos werden als Spiel → Clip → Lauf unter `data\library\` verwaltet (nie im Git):
+```powershell
+matchstats match add spiel-001 --name "Ligaspiel 1" --date 2026-11-15
+matchstats clip import data\clips\clip1.mp4 --game spiel-001 --clip clip1 --half 1 --angle tribuene_hoch --camera-motion schwenkt_und_zoomt
+matchstats clip list --game spiel-001
+matchstats evaluate --game spiel-001 --half 1 --out data\ergebnis\spiel-001-h1   # ein Bericht je Halbzeit
+```
+Der Import kopiert das Video (Original bleibt unverändert). Gültige Profilwerte stehen in
+`src\matchstats\domain\library.py`. `Match.name` und Notizen enthalten keine Spielernamen.
+Profil-Überschreibungen (`settings` in `clip.json`) wirken erst ab T4 in einem Lauf.
+Die vorhandenen T3-Daten wurden einmalig mit `python tools\migrate_t3b.py` übernommen.
+
 ## Entwickeln
 ```powershell
 pytest                       # Tests

@@ -1,14 +1,25 @@
-"""Kommandozeile: `run`, `sample-frames` und `evaluate`. Verdrahtet die Schichten."""
+"""Kommandozeile: run, sample-frames, evaluate, match, clip. Verdrahtet die Schichten."""
 
 import argparse
 import sys
 from pathlib import Path
 
+from matchstats.application.library import LibraryError
 from matchstats.application.pipeline import run_pipeline
+from matchstats.domain.library import ANGLES, CAMERA_MOTIONS, Match, RecordingProfile
+from matchstats.infrastructure.clip_table import format_clip_table
 from matchstats.infrastructure.config_loader import load_settings
-from matchstats.infrastructure.evaluation_job import DETECTOR_NAMES, run_evaluation
+from matchstats.infrastructure.evaluation_job import (
+    DETECTOR_NAMES,
+    run_evaluation,
+    run_library_evaluation,
+)
+from matchstats.infrastructure.file_library import FileLibrary
 from matchstats.infrastructure.frame_sampler import FrameSamplingError, sample_frames
 from matchstats.infrastructure.result_store import save_result
+from matchstats.infrastructure.testset_loader import TestsetFormatError
+
+DEFAULT_LIBRARY = Path("data/library")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -33,7 +44,39 @@ def build_parser() -> argparse.ArgumentParser:
     evaluate.add_argument("--detectors", nargs="+", choices=DETECTOR_NAMES, default=DETECTOR_NAMES)
     evaluate.add_argument("--overlays", type=int, default=6, help="Beispielbilder je Variante")
     evaluate.add_argument("--config", type=Path, default=None, help="Eigene Konfiguration (TOML)")
+    evaluate.add_argument("--game", default=None, help="Spiel-ID: alle Clips einer Halbzeit messen")
+    evaluate.add_argument("--half", type=int, choices=(1, 2), help="Halbzeit (mit --game)")
+    _add_library_option(evaluate)
+
+    match = sub.add_parser("match", help="Spiele der Bibliothek verwalten")
+    match_sub = match.add_subparsers(dest="action", required=True)
+    match_add = match_sub.add_parser("add", help="Neues Spiel anlegen")
+    match_add.add_argument("id", help="Spiel-ID, z. B. spiel-001")
+    match_add.add_argument("--name", required=True)
+    match_add.add_argument("--date", default=None, help="Datum (JJJJ-MM-TT)")
+    match_add.add_argument("--notes", default="")
+    _add_library_option(match_add)
+
+    clip = sub.add_parser("clip", help="Clips der Bibliothek verwalten")
+    clip_sub = clip.add_subparsers(dest="action", required=True)
+    clip_import = clip_sub.add_parser("import", help="Video als Clip in ein Spiel kopieren")
+    clip_import.add_argument("video", type=Path)
+    clip_import.add_argument("--game", required=True, help="Spiel-ID")
+    clip_import.add_argument("--clip", required=True, help="Clip-ID, z. B. clip1")
+    clip_import.add_argument("--half", type=int, choices=(1, 2), default=None)
+    clip_import.add_argument("--angle", choices=ANGLES, default=None)
+    clip_import.add_argument("--camera-motion", choices=CAMERA_MOTIONS, default=None)
+    clip_import.add_argument("--notes", default="")
+    _add_library_option(clip_import)
+    clip_list = clip_sub.add_parser("list", help="Clips eines Spiels auflisten")
+    clip_list.add_argument("--game", required=True, help="Spiel-ID")
+    clip_list.add_argument("--half", type=int, choices=(1, 2), default=None)
+    _add_library_option(clip_list)
     return parser
+
+
+def _add_library_option(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--library", type=Path, default=DEFAULT_LIBRARY, help="Bibliotheksordner")
 
 
 def _run_command(args: argparse.Namespace) -> int:
@@ -66,6 +109,8 @@ def _sample_frames_command(args: argparse.Namespace) -> int:
 
 
 def _evaluate_command(args: argparse.Namespace) -> int:
+    if args.game is not None:
+        return _evaluate_game_command(args)
     for path in (args.testset, args.images):
         if not path.exists():
             print(f"Fehler: nicht gefunden: {path}", file=sys.stderr)
@@ -78,12 +123,60 @@ def _evaluate_command(args: argparse.Namespace) -> int:
     return 0
 
 
+def _evaluate_game_command(args: argparse.Namespace) -> int:
+    if args.half is None:
+        print("Fehler: --game braucht --half", file=sys.stderr)
+        return 2
+    try:
+        run_library_evaluation(
+            FileLibrary(args.library), args.game, args.half, args.out, load_settings(args.config),
+            tuple(args.detectors), args.overlays,
+        )  # fmt: skip
+    except (LibraryError, TestsetFormatError, ValueError, OSError) as err:
+        # ValueError: ungültige Konfiguration; OSError: fehlende Bild- oder Videodatei
+        print(f"Fehler: {err}", file=sys.stderr)
+        return 2
+    print(f"Fertig: {args.out / 'report.md'}")
+    return 0
+
+
+def _match_command(args: argparse.Namespace) -> int:
+    try:
+        FileLibrary(args.library).add_match(
+            Match(id=args.id, name=args.name, date=args.date, notes=args.notes)
+        )
+    except LibraryError as err:
+        print(f"Fehler: {err}", file=sys.stderr)
+        return 2
+    print(f"Spiel {args.id} angelegt")
+    return 0
+
+
+def _clip_command(args: argparse.Namespace) -> int:
+    library = FileLibrary(args.library)
+    try:
+        if args.action == "import":
+            profile = RecordingProfile(args.angle, args.camera_motion, args.notes)
+            clip = library.import_clip(args.game, args.video, args.clip, args.half, profile, {})
+            print(f"Clip {clip.id} importiert nach {library.clip_dir(args.game, clip.id)}")
+        else:
+            print(format_clip_table(library.list_clips(args.game, half=args.half)))
+    except LibraryError as err:
+        print(f"Fehler: {err}", file=sys.stderr)
+        return 2
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if args.command == "sample-frames":
         return _sample_frames_command(args)
     if args.command == "evaluate":
         return _evaluate_command(args)
+    if args.command == "match":
+        return _match_command(args)
+    if args.command == "clip":
+        return _clip_command(args)
     return _run_command(args)
 
 

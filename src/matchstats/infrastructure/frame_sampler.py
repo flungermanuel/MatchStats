@@ -15,6 +15,7 @@ import shutil
 import subprocess
 import tempfile
 from pathlib import Path
+from typing import NamedTuple
 
 from matchstats.domain.sampling import SampledFrame, frame_number, uniform_timestamps
 
@@ -35,13 +36,22 @@ def _parse_number(value: object, what: str) -> float:
     return number
 
 
-def _probe(clip: Path) -> tuple[float, float]:
-    """Liefert (Dauer in Sekunden, Bilder pro Sekunde) des ersten Videostreams."""
+class VideoInfo(NamedTuple):
+    """Metadaten des ersten Videostreams."""
+
+    duration_s: float
+    fps: float
+    width: int
+    height: int
+
+
+def probe_video(clip: Path) -> VideoInfo:
+    """Liest Dauer, Bildrate und Auflösung des ersten Videostreams per ffprobe."""
     try:
         proc = subprocess.run(
             [
                 "ffprobe", "-v", "error", "-select_streams", "v:0",
-                "-show_entries", "stream=avg_frame_rate,duration:format=duration",
+                "-show_entries", "stream=avg_frame_rate,duration,width,height:format=duration",
                 "-of", "json", str(clip),
             ],
             capture_output=True,
@@ -73,7 +83,11 @@ def _probe(clip: Path) -> tuple[float, float]:
     duration = _parse_number(raw_duration, "Dauer")
     if duration <= 0:
         raise FrameSamplingError(f"{clip.name}: Dauer unbekannt ({raw_duration})")
-    return duration, fps
+    width = int(_parse_number(stream.get("width"), "Breite"))
+    height = int(_parse_number(stream.get("height"), "Höhe"))
+    if width <= 0 or height <= 0:
+        raise FrameSamplingError(f"{clip.name}: Auflösung unbekannt ({width}x{height})")
+    return VideoInfo(duration, fps, width, height)
 
 
 def _extract(clip: Path, numbers: list[int], tmp_dir: Path) -> list[Path]:
@@ -140,9 +154,9 @@ def sample_frames(clip: Path, out_dir: Path, count: int) -> list[SampledFrame]:
     if not clip.is_file():
         raise FileNotFoundError(f"Video nicht gefunden: {clip}")
 
-    duration, fps = _probe(clip)
-    stamps = uniform_timestamps(duration, count)
-    numbers = [frame_number(t, fps) for t in stamps]
+    info = probe_video(clip)
+    stamps = uniform_timestamps(info.duration_s, count)
+    numbers = [frame_number(t, info.fps) for t in stamps]
     try:
         out_dir.mkdir(parents=True, exist_ok=True)
         old_entries = _read_manifest(out_dir)

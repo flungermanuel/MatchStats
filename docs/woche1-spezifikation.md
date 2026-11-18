@@ -1,4 +1,4 @@
-# Woche 1: Von Video zu annotiertem Video (Spezifikation v1.2, 16.11.2026)
+# Woche 1: Von Video zu annotiertem Video (Spezifikation v1.3, 18.11.2026)
  
 Projekt: matchstats. Stand: v1.1 ersetzt v1. Änderungen gegenüber v0 und v1 stehen am Ende.
  
@@ -57,6 +57,18 @@ Kalibrierung und Minimap (Woche 2), Heatmaps, Weboberfläche, Warteschlange, Age
 - Personen-Detektor hinter einer austauschbaren Schnittstelle. Zu testen: YOLO (schneller Start, AGPL-3.0) und RF-DETR (Apache 2.0), jeweils kleine Modellgröße.
 - Pro Detektor zwei Varianten: ganzes Bild verkleinert vs. Bild in Kacheln (mit Überlappung, doppelte Erkennungen an Kachelrändern werden zusammengeführt).
 - AK: Recall und Precision (gesamt und nah/fern) aller Kombinationen auf den 60 Testbildern sowie Zeit pro Bild stehen im Bericht.
+### T3b Spiel-/Clip-/Lauf-Struktur (ca. 3 bis 4 h)
+- Videos werden als **Spiel → Clip → Lauf** unter `data/library/` verwaltet (`match.json`, `clip.json`, `runs/<run_id>/run.json`, Testset je Clip in `testset/`). Jede Datei trägt eine `schema_version`; Pfade sind relativ zum Bibliotheksordner.
+- Jeder Clip hat eine **Halbzeit** (`half`: 1, 2 oder `null`) und ein **Aufnahme-Profil** (`angle`, `camera_motion`, `notes`; unbekannt = `null`). Das Profil ist reine Daten und kann Parameter überschreiben.
+- Parameter-Schichtung: Standard (`default.toml`) → Profil-Überschreibungen (`clip.json`) → Aufruf-Argumente. Das Ergebnis steht in `run.json`. Unbekannte Schlüssel werden mit klarer Meldung abgelehnt.
+- Auswertung je **Spiel und Halbzeit**: `matchstats evaluate --game <id> --half <n>` fasst alle Clips einer Halbzeit zu einem Bericht zusammen; die nah/fern-Grenze (Median der Boxhöhen) wird je Bericht bestimmt. Die bisherigen Aufrufe (`run --out`, `evaluate --testset/--images`) bleiben gültig.
+- Import kopiert das Video (Original bleibt unverändert) und trägt fps, Auflösung und Länge per ffprobe ein. Neue Befehle: `match add`, `clip import`, `clip list`.
+- Migration der vorhandenen Daten (clip1 bis 3, Testset, T3-Ergebnisse) per einmaligem Skript in `tools/`; alte Ordner bleiben bestehen.
+- Bewusst nicht in T3b: Stufen-Cache (kommt mit T4), Verweis statt Kopie (`--link`), Deinterlacen/Schneiden beim Import, Oberfläche, Datenbank.
+- AK 1: Ein Test legt ein Spiel und zwei Clips mit verschiedenen Profilen an, importiert (Fake-)Videos und findet sie wieder; ein zweiter Lauf desselben Clips überschreibt den ersten nicht.
+- AK 2: Profil-Werte überschreiben Standardwerte, Aufruf-Argumente überschreiben Profil-Werte (Test mit zwei Profilen).
+- AK 3: Nach der Migration liefert `matchstats evaluate --game spiel-001 --half <n>` (alle drei Clips stammen aus derselben Halbzeit) je Variante dieselben Recall- und Precision-Werte (gesamt und nah/fern) wie `data/ergebnis/t3/report.json`. Laufzeiten sind vom Vergleich ausgenommen.
+- AK 4: `pytest` und `ruff check .` grün; Schichtentest unverändert.
 ### T4 Tracking (ca. 1 bis 2 h)
 - Konstante IDs über die Zeit (ByteTrack-ähnlicher Ansatz), Erkennung nur auf jedem N-ten Bild, Lücken werden vom Tracker überbrückt.
 - AK: Auf einem Clip werden ID-Wechsel pro Minute von Hand gezählt (Methode siehe Messregeln) und im Bericht notiert.
@@ -72,7 +84,7 @@ Kalibrierung und Minimap (Woche 2), Heatmaps, Weboberfläche, Warteschlange, Age
 - Entscheidungsnotiz: Welcher Detektor, Kacheln ja oder nein, welches N, warum (inklusive Lizenz-Überlegung).
 - AK: Bericht liegt vor, Entscheidung begründet.
 ## Reihenfolge
-T0 → T1 → T2 → T3 → T4 → T5 → T6 → T7. T2 und T1 können sich überschneiden, T3 braucht T2.
+T0 → T1 → T2 → T3 → T3b → T4 → T5 → T6 → T7. T2 und T1 können sich überschneiden, T3 braucht T2, T4 baut auf der Struktur aus T3b auf.
  
 ## Definition of Done
 Alles im Git, Tests grün, Bericht erstellt, alle Änderungen vom Entwickler selbst gelesen (Diff-Review), Entscheidungsnotiz geschrieben, Entscheidung und Lernpunkte kurz im Projekt festgehalten.
@@ -96,6 +108,8 @@ Alles im Git, Tests grün, Bericht erstellt, alle Änderungen vom Entwickler sel
 - Weiteres Material: Am Sonntag (15.11.2026) wird ein weiteres Spiel gefilmt. Danach Testset, Brief und Beschreibung anpassen (Auflösung, Perspektive).
 - Grenze für nah/fern in Boxhöhe nach Sichtung der Daten festlegen.
 ## Änderungen
+**v1.3 gegenüber v1.2 (18.11.2026):** Neue Aufgabe T3b (Spiel-/Clip-/Lauf-Struktur mit Aufnahme-Profil, Halbzeit und Parameter-Schichtung, Bericht je Spiel und Halbzeit) zwischen T3 und T4, Reihenfolge angepasst. Die Struktur unterstützt mehrere Spiele und Profile; die Basislinie ist weiterhin nur auf einem Spiel und einer Perspektive gemessen. Messregeln und Nicht-Ziele unverändert. Grundlage: `docs/entwuerfe/t3b-struktur.md`, gekürzt nach Architektur-Prüfung.
+
 **v1.2 gegenüber v1.1 (16.11.2026):** Beschriftungswerkzeug (Label Studio) und Format (COCO-JSON) von Vorschlag auf festgelegt gesetzt (T0, T2), entsprechender offener Punkt entfernt. Inhaltlich keine weitere Änderung.
 
 **v1.1 gegenüber v1:** Material festgestellt (.MTS, 1920x1080, 25 fps, interlaced, 12 min), kein 4K. Deinterlacing mit ffmpeg-Befehl in T0 und als AK, alle Clips aus einem Spiel als Einschränkung, Risiken und offene Punkte entsprechend ergänzt. Projekt- und Befehlsname ist jetzt matchstats (statt footy), Beschriftungswerkzeug Label Studio vorgeschlagen.
