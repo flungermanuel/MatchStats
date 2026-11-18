@@ -4,6 +4,8 @@ Stand: 18.11.2026. Entwurf; die verbindliche Wochenspezifikation (`docs/woche1-s
 nach deinem Ja (siehe Abschnitt 9). Vorgaben aus der Besprechung: Kamera schwenkt und zoomt, nicht
 immer sind alle Spieler im Bild; Rechenzeit in der Entwicklung minimal halten; 6 bis 8 Spieler von Hand zählen.
 
+**Voraussetzung:** T3b (Spiel-/Clip-/Lauf-Struktur) ist umgesetzt. Alle Dateien dieses Entwurfs (`detections.json`, `camera.json`, `tracks.json`) liegen im Ordner eines Laufs (`runs/<run_id>/`), Parameter kommen aus Standard, Profil und Aufruf.
+
 ## 1. Ziel und Abnahmekriterium
 Aus den Erkennungen (jedes N-te Bild) entstehen **Spuren mit konstanter ID** für jedes Bild des Clips.
 - **AK (aus der Wochenspezifikation):** Auf einem Clip werden ID-Wechsel pro Minute von Hand gezählt und im Bericht notiert, mit Methode.
@@ -67,7 +69,7 @@ beliebig oft darauf.
 - Zählung von nur 6 bis 8 Spielern ist eine Stichprobe; Aussage "Spieler pro Minute", nicht "alle Spieler".
 
 ## 7. Konfiguration (alle in `default.toml`, nichts fest im Code)
-`detect_every` (besteht), `track_low_score` = 0,1, `track_high_score` = 0,5 (Start; **kein Vorschlag aus den Daten**, wird an `detections.json` geprüft), `track_new_score` = 0,5, `track_match_iou` = 0,3, `track_max_lost_seconds` = 1,5, `track_min_hits` = 2, `track_edge_margin_px` = 40, `camera_downscale` = 0,25, `camera_enabled` = true.
+`detect_every` (besteht), `track_low_score` = 0,1, `track_high_score` = 0,5 (Start; **kein Vorschlag aus den Daten**, wird an `detections.json` geprüft), `track_new_score` = 0,5, `track_match_iou` = 0,3, `track_max_lost_seconds` = 1,5, `track_min_hits` = 2, `track_edge_margin_px` = 40, `camera_downscale` = 0,25. Ob die Kamerabewegung geschätzt wird, kommt **aus dem Aufnahme-Profil des Clips** (`camera_motion`, siehe `t3b-struktur.md`): `fest` = aus, `schwenkt`/`schwenkt_und_zoomt` = an. Für den Vergleich A/B kann ein Lauf das per Aufruf-Argument überschreiben.
 Die Werte sind Ausgangswerte, keine Entscheidungen. Änderungen am Wert werden im Bericht genannt, wenn sie die Zahlen beeinflussen.
 
 ## 8. Reihenfolge (jede Teilstufe einzeln testbar und einzeln committbar nach T4-Abschluss)

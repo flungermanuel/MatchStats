@@ -107,6 +107,7 @@ Regeln:
 - Jede Messung hat Felder für Sichtbarkeit ("im Bild?") und Unsicherheit. Unbekannt ist nicht null: fehlende Werte werden als fehlend gespeichert, nicht als 0.
 - Heatmaps und Grafiken werden deterministisch aus Daten gerendert.
 - Parameter (z. B. `detect_every`, Schwellwerte, Modellname) kommen aus einer Konfiguration, nicht fest im Code.
+- **Einfach zu aktualisieren und zu erweitern** ist ein Leitgedanke: Neue Stufen, Detektoren, Kennzahlen und Aufnahme-Profile kommen durch Hinzufügen dazu, nicht durch Umbau. Austauschbares steht hinter Ports, Verhalten kommt aus Konfiguration und Profil (nicht aus Fallunterscheidungen), Dateiformate haben `schema_version`, Versionen von Modellen und Bibliotheken werden im Ergebnis eines Laufs festgehalten. Der Architekt-Agent prüft das bei jedem Plan. Bremse: nur so viel Struktur, wie die aktuelle und die nächste Aufgabe sicher brauchen.
 - Einfach halten: keine zusätzlichen Bibliotheken oder Abstraktionen, die die aktuelle Aufgabe nicht braucht. Bei neuen Abhängigkeiten kurz begründen und Lizenz nennen.
 
 ## Messen und Testen
