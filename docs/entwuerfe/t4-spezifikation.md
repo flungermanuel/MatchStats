@@ -6,6 +6,18 @@ immer sind alle Spieler im Bild; Rechenzeit in der Entwicklung minimal halten; 6
 
 **Voraussetzung:** T3b (Spiel-/Clip-/Lauf-Struktur) ist umgesetzt. Alle Dateien dieses Entwurfs (`detections.json`, `camera.json`, `tracks.json`) liegen im Ordner eines Laufs (`runs/<run_id>/`), Parameter kommen aus Standard, Profil und Aufruf.
 
+## 0. Beschlüsse (18.11.2026, nach Architektur-Prüfung; gehen den Abschnitten unten vor)
+- Wochenspezifikation auf **v1.4** gehoben (Abschnitt 9 umgesetzt).
+- **Kamerabewegung nicht in T4**: Stufe 2, `camera.json`, Port `CameraMotionEstimator` und Regeln 7/8 entfallen vorerst. Sie kommen als T4b nur, wenn die Handzählung ohne Ausgleich deutlich schlecht ist. Regel 7 gilt in T4 in der Form "ohne Kamerawissen" (keine Verschiebung der Vorhersage).
+- **Detektor in der Entwicklung: RF-DETR Ganzbild.** Variantenschalter `--variant whole|tiles` existiert, Kacheln laufen später (z. B. für T7).
+- **Schwellen:** `detect_min_score` (0,1) filtert beim Speichern von `detections.json` (Parameter der Erkennungsstufe); `track_high_score` (0,5) eröffnet neue Spuren und trennt hoch/niedrig; `track_new_score` entfällt. `track_low_score` entfällt ebenfalls (= `detect_min_score`).
+- **Ein Befehl** `matchstats track --game <id> --clip <id> [--variant] [--run <id>]` statt `detect`/`camera`/`track`/`render`. Stufen-Cache: Eine Stufe wird nur übersprungen, wenn ihre Datei existiert **und** ihre Stufen-Parameter (Detektor, Variante, Modell, `detect_every`, `detect_min_score`) übereinstimmen. Schreiben über Temp-Datei plus Umbenennen. Das Tracking läuft immer neu (Sekunden).
+- **Schichten:** Datentypen in `domain/`; Port `Tracker` und Implementierung `ByteTrackLikeTracker` (reine Rechnung, numpy/scipy) in `application/`; Port `FrameSource` (Video bildweise lesen) in `application/`, OpenCV-Umsetzung in `infrastructure/`; Stufenablauf in `application/`, nicht in `cli.py`.
+- **Dateiformate:** eigene `schema_version` je Datei. `tracks.json` wird Version 2 (Version 1 wird mit klarer Meldung abgelehnt). `run.json` erhält Versionen von Detektor und Bibliotheken.
+- **Darstellung:** nur als Zählhilfe (Box + ID, Kontaktbögen); T6 erweitert dasselbe Modul.
+- **Hilfszahlen:** Spuren pro Minute, mittlere Spurlänge, Anteil `visible`.
+- Neue Abhängigkeiten als Extra `track`: `scipy` (BSD), `opencv-python` (Apache 2.0).
+
 ## 1. Ziel und Abnahmekriterium
 Aus den Erkennungen (jedes N-te Bild) entstehen **Spuren mit konstanter ID** für jedes Bild des Clips.
 - **AK (aus der Wochenspezifikation):** Auf einem Clip werden ID-Wechsel pro Minute von Hand gezählt und im Bericht notiert, mit Methode.

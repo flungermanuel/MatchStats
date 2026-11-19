@@ -15,6 +15,9 @@ dev = ["pytest>=8", "ruff>=0.6"]
 # Detektoren (torch zusätzlich von https://download.pytorch.org/whl/cpu für CPU-Version):
 detect = ["rfdetr>=1.12"]  # Apache 2.0, Hauptdetektor
 yolo = ["ultralytics>=8.3"]  # AGPL-3.0, nur optional
+# Tracking (T4): scipy (BSD) für die Zuordnung, opencv-python (Apache 2.0) für Video lesen/schreiben.
+# rfdetr bringt opencv nur im Extra "stream" (headless) mit, daher kein Konflikt.
+track = ["scipy>=1.11", "opencv-python>=4.8"]
 
 [project.scripts]
 matchstats = "matchstats.cli:console_main"

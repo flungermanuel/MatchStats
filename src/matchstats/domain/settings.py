@@ -16,6 +16,14 @@ class Settings:
     tile_size: int = 640
     tile_overlap: float = 0.2
     nms_iou: float = 0.5
+    # Tracking (T4): Erkennungen unter detect_min_score werden verworfen; ab track_high_score
+    # darf eine Erkennung eine Spur eröffnen. Zuordnung per IoU (track_match_iou).
+    detect_min_score: float = 0.1
+    track_high_score: float = 0.4
+    track_match_iou: float = 0.3
+    track_max_lost_seconds: float = 1.5
+    track_min_hits: int = 3
+    track_edge_margin_px: int = 40
 
     def __post_init__(self) -> None:
         if self.detect_every < 1:
@@ -30,3 +38,12 @@ class Settings:
             raise ValueError("tile_overlap muss in [0, 1) liegen")
         if not 0 <= self.nms_iou <= 1:
             raise ValueError("nms_iou muss zwischen 0 und 1 liegen")
+        for name in ("detect_min_score", "track_high_score", "track_match_iou"):
+            if not 0 <= getattr(self, name) <= 1:
+                raise ValueError(f"{name} muss zwischen 0 und 1 liegen")
+        if self.track_max_lost_seconds < 0:
+            raise ValueError("track_max_lost_seconds darf nicht negativ sein")
+        if self.track_min_hits < 1:
+            raise ValueError("track_min_hits muss mindestens 1 sein")
+        if self.track_edge_margin_px < 0:
+            raise ValueError("track_edge_margin_px darf nicht negativ sein")

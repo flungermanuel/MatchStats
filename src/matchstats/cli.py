@@ -1,4 +1,4 @@
-"""Kommandozeile: run, sample-frames, evaluate, match, clip. Verdrahtet die Schichten."""
+"""Kommandozeile: run, sample-frames, evaluate, match, clip, track. Verdrahtet die Schichten."""
 
 import argparse
 import sys
@@ -20,6 +20,8 @@ from matchstats.infrastructure.result_store import save_result
 from matchstats.infrastructure.testset_loader import TestsetFormatError
 
 DEFAULT_LIBRARY = Path("data/library")
+# Gleich wie tracking_job.VARIANTS; hier fest, damit cv2/scipy nicht beim Import geladen werden.
+TRACK_VARIANTS = ("whole", "tiles")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -72,6 +74,17 @@ def build_parser() -> argparse.ArgumentParser:
     clip_list.add_argument("--game", required=True, help="Spiel-ID")
     clip_list.add_argument("--half", type=int, choices=(1, 2), default=None)
     _add_library_option(clip_list)
+
+    track = sub.add_parser("track", help="Personen erkennen und zu Spuren verbinden")
+    track.add_argument("--game", required=True, help="Spiel-ID")
+    track.add_argument("--clip", required=True, help="Clip-ID")
+    track.add_argument(
+        "--variant", choices=TRACK_VARIANTS, default="whole", help="Ganzbild oder Kacheln"
+    )
+    track.add_argument("--run", default=None, help="Vorhandenen Lauf weiterverwenden (run-NNN)")
+    track.add_argument("--no-render", action="store_true", help="Kein Video und keine Kontaktbögen")
+    track.add_argument("--config", type=Path, default=None, help="Eigene Konfiguration (TOML)")
+    _add_library_option(track)
     return parser
 
 
@@ -167,6 +180,37 @@ def _clip_command(args: argparse.Namespace) -> int:
     return 0
 
 
+def _track_command(args: argparse.Namespace) -> int:
+    # Erst hier importieren: cv2/scipy stehen nur im Extra "track".
+    from matchstats.infrastructure.tracking_job import run_track_job
+
+    if args.run is not None and args.config is not None:
+        print("Warnung: --config wird mit --run ignoriert (Einstellungen des Laufs gelten)",
+              file=sys.stderr)  # fmt: skip
+    try:
+        job = run_track_job(
+            FileLibrary(args.library), args.game, args.clip, args.variant,
+            args.config, args.run, render=not args.no_render,
+        )  # fmt: skip
+    except (LibraryError, ValueError, OSError) as err:
+        print(f"Fehler: {err}", file=sys.stderr)
+        return 2
+    summary = job.summary
+    print(f"Lauf {job.run_id}: {job.run_dir}")
+    print(
+        f"Spuren: {summary['track_count']}, pro Minute: {summary['tracks_per_minute']}, "
+        f"mittlere Länge (s): {summary['mean_track_seconds']}, "
+        f"gesehen: {summary['visible_share']}"
+    )
+    seconds = summary["stage_seconds"]
+    print(
+        f"Laufzeit (s): Erkennung {seconds['detection']}, Tracking {seconds['tracking']}, "
+        f"Darstellung {seconds['render']}; "
+        f"Erkennung wiederverwendet: {summary['detections_reused']}"
+    )
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if args.command == "sample-frames":
@@ -177,6 +221,8 @@ def main(argv: list[str] | None = None) -> int:
         return _match_command(args)
     if args.command == "clip":
         return _clip_command(args)
+    if args.command == "track":
+        return _track_command(args)
     return _run_command(args)
 
 

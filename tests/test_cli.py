@@ -21,7 +21,7 @@ def test_run_creates_empty_valid_result(tmp_path):
 
     assert code == 0
     result = json.loads((out / "tracks.json").read_text(encoding="utf-8"))
-    assert result["schema_version"] == 1
+    assert result["schema_version"] == 2
     assert result["source"] == "clip.mp4"  # nur der Dateiname, kein Pfad
     assert result["tracks"] == []
     assert result["config"]["detect_every"] == 5

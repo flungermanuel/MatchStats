@@ -14,3 +14,15 @@ score_threshold = 0.3
 tile_size = 640
 tile_overlap = 0.2
 nms_iou = 0.5
+
+# Tracking (T4): Erkennungen unter detect_min_score werden verworfen, ab track_high_score
+# darf eine Erkennung eine Spur eröffnen; track_match_iou ist die Mindest-Überlappung der Zuordnung.
+detect_min_score = 0.1
+track_high_score = 0.4
+track_match_iou = 0.3
+# Wie lange eine Spur ohne Erkennung überbrückt wird, bevor sie endet.
+track_max_lost_seconds = 1.5
+# Treffer, bis eine Spur bestätigt wird (vorher nicht in der Ausgabe).
+track_min_hits = 3
+# Abstand zum Bildrand, innerhalb dessen eine verlorene Spur sofort endet.
+track_edge_margin_px = 40

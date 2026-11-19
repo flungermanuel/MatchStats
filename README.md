@@ -86,8 +86,21 @@ matchstats evaluate --game spiel-001 --half 1 --out data\ergebnis\spiel-001-h1  
 ```
 Der Import kopiert das Video (Original bleibt unverändert). Gültige Profilwerte stehen in
 `src\matchstats\domain\library.py`. `Match.name` und Notizen enthalten keine Spielernamen.
-Profil-Überschreibungen (`settings` in `clip.json`) wirken erst ab T4 in einem Lauf.
+Profil-Überschreibungen (`settings` in `clip.json`) gelten für neue Läufe von `matchstats track`.
 Die vorhandenen T3-Daten wurden einmalig mit `python tools\migrate_t3b.py` übernommen.
+
+## Tracking (T4)
+```powershell
+# [track]: scipy + OpenCV (Tracking, Video); [detect]: RF-DETR (Erkennung), siehe oben
+pip install -e ".[track,detect]" --extra-index-url https://download.pytorch.org/whl/cpu
+matchstats track --game spiel-001 --clip clip1 [--variant whole|tiles] [--no-render]
+matchstats track --game spiel-001 --clip clip1 --run run-001   # Erkennung wiederverwenden
+```
+Erkennt Personen auf jedem N-ten Bild und verbindet sie zu Spuren (ohne Kamerabewegung, ohne
+Teamzuordnung). Ohne `--run` entsteht ein neuer Lauf; mit `--run` bleiben dessen Parameter
+gültig und `detections.json` wird wiederverwendet, wenn die Erkennungs-Parameter gleich sind.
+Im Lauf-Ordner: `detections.json`, `tracks.json`, `summary.json` (Kennzahlen, Laufzeiten) und
+`render/tracks.mp4` (halbe Geschwindigkeit) plus `render/sheet_*.png` (alle 2 s, volle Auflösung).
 
 ## Entwickeln
 ```powershell
