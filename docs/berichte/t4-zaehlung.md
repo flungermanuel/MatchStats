@@ -3,6 +3,7 @@
 Lauf: `data\library\spiel-001\clip1\runs\run-003` (RF-DETR Ganzbild, `track_high_score` 0,4, `track_min_hits` 3, ohne Kamerabewegung).
 Material: `render\tracks.mp4` (halbe Geschwindigkeit, Box + ID) und `render\sheet_*.png` (alle 2 s).
 Keine Namen, nur Rollen ("Spieler 1 = linker Außenverteidiger, helles Trikot").
+Praktische Schritt-für-Schritt-Anleitung: `docs/berichte/t4-zaehlung-anleitung.md`.
 
 ## Methode (Messregel ID-Wechsel, Spezifikation v1.4)
 1. Vorab 6 bis 8 Spieler wählen: nah und fern gemischt, auf mehrere Abschnitte des Clips verteilt. **Vor** dem Ansehen der IDs festlegen, nicht die "schönen" Fälle aussuchen.

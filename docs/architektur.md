@@ -1,6 +1,88 @@
 # matchstats: Systemkarte
 
-Stand: 2026-11-18, nach T4 (Tracking, noch nicht committet). Was nicht als *(geplant)* markiert ist, existiert im Repo. **unklar** = im Repo nicht gefunden oder nicht entschieden.
+Stand: 2026-11-20, nach T4 (Tracking, committet; Handzählung offen). Zwei Teile:
+- **Teil A: Zielbild** (abgeleitet aus `docs/workflow-spielanalyse.md`): wie das fertige System aufgebaut ist. Ein **Entwurf zur Bestätigung**, keine Spezifikation. Er ändert weder die Schichten aus CLAUDE.md noch die Woche-1-Spezifikation.
+- **Teil B: Stand heute**: was im Repo existiert. Was nicht als *(geplant)* markiert ist, existiert. **unklar** = im Repo nicht gefunden oder nicht entschieden.
+
+# Teil A: Zielbild
+
+## A1. Fachliche Bausteine (Begriffe des Workflows)
+
+```
+Spiel (Match)
+ └─ Clip  (Video einer Halbzeit/eines Abschnitts + Aufnahme-Profil)
+     └─ Lauf (Run)  = ein Verarbeitungsdurchgang mit festen Parametern
+         ├─ Erkennungen  → Spuren → Teams
+         ├─ Kalibrierung → Feldspuren (Positionen in Metern)
+         ├─ Kennzahlen → Bericht
+         └─ Korrekturen (getrennt von den Rohdaten)
+```
+- **Rohdaten sind unveränderlich.** Jede Stufe schreibt eine neue Datei; Korrekturen des Anwenders liegen in einer eigenen Datei und werden beim Lesen darübergelegt.
+- **Alles ist abgeleitet:** Ändert sich ein Parameter, entsteht ein neuer Lauf. Neue Kennzahlen brauchen nur die letzte Stufe (Leitprinzip Daten → Erkenntnisse → Darstellung).
+- **Messung = Wert + Sichtbarkeit + Unsicherheit.** Unbekannt ist `null`, nie 0.
+
+## A2. Pipeline-Stufen (je Clip und Lauf)
+
+Jede Stufe liest nur Dateien der Vorstufen und schreibt genau ihre eigenen. Bildverarbeitung steckt nur in den Stufen 1 bis 4 (Modelle); ab Stufe 5 wird nur gerechnet.
+
+| Nr | Stufe | Eingabe | Ausgabe | Austauschbar über Port | Stand |
+|---|---|---|---|---|---|
+| 0 | Import und Aufbereitung | Rohvideo | `clip.mp4`, `clip.json` | `Library`, später `VideoPreparer` (Deinterlacen) | Import da, Deinterlacen manuell |
+| 1 | Aufnahmeprüfung: Abschnitte, Kamerabewegung | Video | `segments.json`, `camera.json` | `SegmentClassifier`, `CameraMotionEstimator` | geplant (T4b nur bei Bedarf) |
+| 2 | Erkennung | Video (jedes N-te Bild) | `detections.json` | `Detector` (RF-DETR, YOLO) | **vorhanden** |
+| 3 | Spurbildung | `detections.json` (+ `camera.json`) | `tracks.json` | `Tracker` | **vorhanden** (T4) |
+| 4 | Teamzuordnung und Rollen | Video-Ausschnitte der Spuren, `tracks.json` | `teams.json` (Team, Torhüter, Schiedsrichter, Unsicherheit) | `TeamClassifier` | geplant (T5) |
+| 5 | Kalibrierung und Projektion | Schlüsselbilder (manuell), `tracks.json` | `calibration.json`, `pitch_tracks.json` | `Calibrator` | geplant (Woche 2) |
+| 6 | Qualitätsprüfung | alle Vorstufen | `quality.json` | `QualityCheck` (Regeln) | geplant |
+| 7 | Kennzahlen | `pitch_tracks.json`, `teams.json`, `corrections.json` | `metrics.json` | `Metric` (eine Klasse je Kennzahl) | geplant |
+| 8 | Darstellung und Bericht | Kennzahlen, Spuren | Heatmap-PNG, Minimap-Video, `report.md` | `Renderer` | Spuren-Video da (`render/`), Rest geplant (T6, T7) |
+
+Stufen 1 bis 3 wirken auf das Video, Stufe 7 und 8 **nie** (nur auf Daten). Das ist die Garantie, dass neue Kennzahlen keinen Bildlauf brauchen.
+
+**Stufenkette und Cache:** Jede Stufe hat `stage_params` (ihre Parameter), und die Dateien der Vorstufen. Passt beides zur gespeicherten Datei, wird die Stufe übersprungen. Heute gilt das nur für die Erkennung (Abschnitt 3); die Verallgemeinerung kommt erst, wenn die zweite teure Stufe (Kalibrierung oder Teams) existiert (Bremse: nicht vorher bauen).
+
+## A3. Anwendungsfälle und Einstiegspunkte
+
+Die Fachlogik liegt als **Anwendungsfälle** in `application/`. Jede Oberfläche ruft dieselben auf:
+
+| Anwendungsfall (Workflow-Schritt) | Heute | Später |
+|---|---|---|
+| Spiel anlegen / Clip importieren (1, 2) | CLI `match add`, `clip import` | Upload in der Weboberfläche |
+| Verarbeitung starten (5) | CLI `track` | API-Aufruf, Auftrag in Warteschlange, Worker führt Stufen aus |
+| Kalibrieren (4) | | Kalibrierwerkzeug (Bild anklicken) |
+| Korrigieren (7) | | Viewer schreibt `corrections.json` |
+| Kennzahlen/Bericht (8 bis 10) | | Viewer, Export |
+| Qualität und Vergleich (6, 11) | | Prüfstand, Analyse-Agenten |
+
+Aufbau, damit das ohne Umbau wächst:
+```
+Einstiegspunkte:  CLI (heute) | Web-API (später) | Worker/Warteschlange (später) | Agenten (später)
+                        │ rufen dieselben Anwendungsfälle auf
+Anwendung:        Anwendungsfälle (Pipeline, Lauf starten, Kalibrieren, Kennzahlen ...) + Ports
+Domäne:           Spiel, Clip, Lauf, Spur, Messung, Kalibrierung, Kennzahl (reine Daten und Regeln)
+Infrastruktur:    Dateien/Bibliothek, Video, Modelle, Renderer (später: Objektspeicher, Datenbank)
+```
+Die vier Schichten aus CLAUDE.md bleiben unverändert (`cli -> infrastructure -> application -> domain`). Neue Einstiegspunkte (API, Worker) wären wie `cli.py` Verdrahtung und kämen nach Rücksprache und Eintrag in `docs/entscheidungen/` dazu. Agenten lesen Kennzahlen und Qualitätsberichte aus den Dateien und erkennen nichts im Bild.
+
+## A4. Querschnitt (gilt für alle Stufen)
+- **Speicher:** Heute Dateien in `data\library\` (kein Git). Die Bibliothek ist ein Port; später Objektspeicher plus Datenbank ohne Änderung der Stufen.
+- **Konfiguration:** Standard, eigene Datei, Aufnahme-Profil, Aufruf-Argumente; das Ergebnis steht in `run.json`. Neue Aufnahme-Profile sind Daten, kein Code.
+- **Versionen:** `schema_version` in jeder Datei; Modell- und Bibliotheksversionen im Ergebnis eines Laufs.
+- **Fortschritt und Wiederaufnahme:** Jeder Lauf zeigt je Stufe "fertig/offen"; ein Abbruch lässt sich ab der letzten fertigen Stufe fortsetzen. Heute nicht vollständig (Abschnitt 6, "Lauf-Ordner").
+- **Qualität und Messbarkeit:** Prüfstände (Testset, Handzählung, später beschriftete Spuren) laufen gegen dieselben Dateien wie der Anwender.
+- **Datenschutz:** Keine Namen, keine Rohdaten im Git oder bei externen Diensten.
+
+## A5. Abweichungen und Lücken gegenüber dem heutigen Stand (zur Entscheidung)
+1. **Mannschaften im Spiel** (`match.json`) fehlen. Entschieden: Der Anwender wählt seine Mannschaft, Auswertung aus deren Sicht. Umsetzung als Vorschlag in `docs/entwuerfe/zielbild-entscheidungen.md`.
+2. **Korrekturen** als eigene Datei sind in keiner Spezifikation vorgesehen. Ohne sie bleiben Fehlzuordnungen dauerhaft in den Kennzahlen.
+3. **Aufnahmeprüfung (Stufe 1)** steht in der Woche-1-Spezifikation nur als T4b (Kamerabewegung). Das Ausschließen von Jubel-/Zoomabschnitten ist im Brief verlangt, in keiner Aufgabe verplant.
+4. **Spielfeldfilter** (Woche 2) braucht die Kalibrierung; bis dahin verfälschen Ordner/Bank die Spurzahlen.
+5. **Tracker in `application/`** statt `infrastructure/` (siehe Abschnitt 6): Bei mehreren Trackern wird das wieder aktuell.
+6. **`matchstats run`** ist der älteste Pfad und duplizierte den Ablauf von `track`. Bei der ersten Stufe, die ihn berührt (T5/T6), sollte er entweder auf den neuen Ablauf zeigen oder entfallen.
+
+Zielbild (Teil A) von dir bestätigt am 2026-11-20. Die Umsetzung jeder Lücke bleibt eine eigene Entscheidung, Vorschläge in `docs/entwuerfe/zielbild-entscheidungen.md`.
+
+# Teil B: Stand heute
 
 ## 1. Schichten
 
