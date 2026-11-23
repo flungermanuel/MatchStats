@@ -1,7 +1,10 @@
-"""Tracker: verbindet Erkennungen über die Zeit zu Spuren (ByteTrack-ähnlich, ohne Kamerawissen).
+"""Tracker: verbindet Erkennungen über die Zeit zu Spuren (ByteTrack-ähnlich).
 
 Es wird nur auf Erkennungsbildern zugeordnet; die Bilder dazwischen werden am Ende linear
 interpoliert. Bewegungsmodell: konstante Geschwindigkeit der Boxmitte, Boxgröße = letzte Messung.
+Kamerabewegung (T4b): Die letzte Box wird vor der Vorhersage mit dem Kamerapfad ins Zielbild
+verschoben; die Geschwindigkeit enthält so nur die Eigenbewegung der Person. Ohne bekannte
+Kamerabewegung (NO_CAMERA oder Lücke im Pfad) bleibt die Box unverschoben.
 """
 
 from collections.abc import Sequence
@@ -11,6 +14,7 @@ from typing import Protocol
 import numpy as np
 from scipy.optimize import linear_sum_assignment
 
+from matchstats.domain.camera import NO_CAMERA, CameraPath
 from matchstats.domain.detection import Detection, iou
 from matchstats.domain.settings import Settings
 from matchstats.domain.tracking import FrameDetections, Track, TrackPoint
@@ -21,7 +25,11 @@ VELOCITY_GAIN = 0.5
 
 class Tracker(Protocol):
     def track(
-        self, frames: Sequence[FrameDetections], frame_count: int, frame_size: tuple[int, int]
+        self,
+        frames: Sequence[FrameDetections],
+        frame_count: int,
+        frame_size: tuple[int, int],
+        camera: CameraPath = NO_CAMERA,
     ) -> list[Track]: ...
 
 
@@ -52,13 +60,15 @@ class _Candidate:
     def last(self) -> _Hit:
         return self.hits[-1]
 
-    def predict(self, frame: int) -> _Box:
+    def predict(self, frame: int, camera: CameraPath) -> _Box:
         d = self.last.detection
         dt = frame - self.last.frame
-        return _Box(d.x + self.vx * dt, d.y + self.vy * dt, d.w, d.h)
+        # erst mit der Kamera ins Zielbild verschieben, dann die Eigenbewegung addieren
+        x, y, w, h = camera.shift_box(d.x, d.y, d.w, d.h, self.last.frame, frame)
+        return _Box(x + self.vx * dt, y + self.vy * dt, w, h)
 
-    def update(self, frame: int, det: Detection) -> None:
-        previous = self.predict(frame)
+    def update(self, frame: int, det: Detection, camera: CameraPath) -> None:
+        previous = self.predict(frame, camera)
         dt = frame - self.last.frame
         if dt > 0:
             # Vorhersagefehler der Boxmitte
@@ -75,7 +85,11 @@ class ByteTrackLikeTracker:
         self._max_lost = round(settings.track_max_lost_seconds * fps)
 
     def track(
-        self, frames: Sequence[FrameDetections], frame_count: int, frame_size: tuple[int, int]
+        self,
+        frames: Sequence[FrameDetections],
+        frame_count: int,
+        frame_size: tuple[int, int],
+        camera: CameraPath = NO_CAMERA,
     ) -> list[Track]:
         s = self._s
         active: list[_Candidate] = []
@@ -89,14 +103,14 @@ class ByteTrackLikeTracker:
 
             # Stufe 1: hohe Scores gegen alle aktiven Spuren, Stufe 2: niedrige nur gegen den
             # Rest der bestätigten Spuren (wie klassisches ByteTrack).
-            matched1, free_tracks, free_high = self._associate(active, high, fd.frame)
+            matched1, free_tracks, free_high = self._associate(active, high, fd.frame, camera)
             confirmed_free = [t for t in free_tracks if t.id is not None]
             unconfirmed_free = [t for t in free_tracks if t.id is None]
-            matched2, still_free, _ = self._associate(confirmed_free, low, fd.frame)
+            matched2, still_free, _ = self._associate(confirmed_free, low, fd.frame, camera)
             free_tracks = still_free + unconfirmed_free
             matched = {id(t) for t, _ in matched1 + matched2}
             for track, det in matched1 + matched2:
-                track.update(fd.frame, det)
+                track.update(fd.frame, det, camera)
 
             survivors = [t for t in active if id(t) in matched]
             for track in free_tracks:
@@ -120,14 +134,14 @@ class ByteTrackLikeTracker:
         return [_to_track(t) for t in sorted(confirmed, key=lambda t: t.id or 0)]
 
     def _associate(
-        self, tracks: list[_Candidate], dets: list[Detection], frame: int
+        self, tracks: list[_Candidate], dets: list[Detection], frame: int, camera: CameraPath
     ) -> tuple[list[tuple[_Candidate, Detection]], list[_Candidate], list[Detection]]:
         """Ordnet per IoU (ungarische Methode) zu; Rückgabe: Paare, freie Spuren, freie Boxen."""
         if not tracks or not dets:
             return [], list(tracks), list(dets)
         overlap = np.zeros((len(tracks), len(dets)))
         for i, track in enumerate(tracks):
-            predicted = track.predict(frame)
+            predicted = track.predict(frame, camera)
             for j, det in enumerate(dets):
                 value = iou(predicted, det)
                 overlap[i, j] = value if value >= self._s.track_match_iou else 0.0

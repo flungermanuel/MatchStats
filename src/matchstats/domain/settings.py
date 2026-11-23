@@ -28,6 +28,13 @@ class Settings:
     # einer alten und höchstens so viele Boxhöhen von deren letzter Position entfernt.
     switch_max_gap_seconds: float = 1.0
     switch_max_distance_heights: float = 1.0
+    # Kamerabewegung (T4b): Ausgleich an/aus (kommt normalerweise aus dem Aufnahme-Profil),
+    # Verkleinerung des Bildes für die Schätzung, Mindestqualität einer Schätzung (darunter gilt
+    # sie als unbekannt) und höchste Zahl verfolgter Merkmalspunkte.
+    camera_compensation: bool = True
+    camera_downscale: float = 0.5
+    camera_min_quality: float = 0.5
+    camera_max_features: int = 300
 
     def __post_init__(self) -> None:
         if self.detect_every < 1:
@@ -55,3 +62,9 @@ class Settings:
             raise ValueError("switch_max_gap_seconds darf nicht negativ sein")
         if self.switch_max_distance_heights < 0:
             raise ValueError("switch_max_distance_heights darf nicht negativ sein")
+        if not 0 < self.camera_downscale <= 1:
+            raise ValueError("camera_downscale muss in (0, 1] liegen")
+        if not 0 <= self.camera_min_quality <= 1:
+            raise ValueError("camera_min_quality muss zwischen 0 und 1 liegen")
+        if self.camera_max_features < 1:
+            raise ValueError("camera_max_features muss mindestens 1 sein")

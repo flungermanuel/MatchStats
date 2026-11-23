@@ -1,4 +1,4 @@
-# Woche 1: Von Video zu annotiertem Video (Spezifikation v1.5, 23.11.2026)
+# Woche 1: Von Video zu annotiertem Video (Spezifikation v1.6, 23.11.2026)
  
 Projekt: matchstats. Stand: v1.1 ersetzt v1. Änderungen gegenüber v0 und v1 stehen am Ende.
  
@@ -72,8 +72,16 @@ Kalibrierung und Minimap (Woche 2), Heatmaps, Weboberfläche, Warteschlange, Age
 ### T4 Tracking (ca. 3 bis 4 h)
 - Konstante IDs über die Zeit (ByteTrack-ähnlicher Ansatz), Erkennung nur auf jedem N-ten Bild, Lücken werden vom Tracker überbrückt.
 - Stufen mit gespeicherten Zwischenergebnissen im Lauf-Ordner (`detections.json`, `tracks.json`); das Tracking liest nur Dateien und kann ohne neue Erkennung wiederholt werden. Detektor in der Entwicklung: RF-DETR Ganzbild.
-- Kamerabewegung (Schwenk/Zoom herausrechnen) ist **nicht** Teil von T4; sie folgt als eigener Schritt T4b nur, wenn die Kandidaten-Rate und die Stichprobe der Vergleichsbilder ohne Ausgleich deutlich schlecht ausfallen. Grundlage: `docs/entwuerfe/t4-spezifikation.md`.
+- Kamerabewegung (Schwenk/Zoom herausrechnen) ist **nicht** Teil von T4; sie folgt als eigener Schritt T4b (seit v1.6 beschlossen, siehe unten). Grundlage: `docs/entwuerfe/t4-spezifikation.md`.
 - AK: Auf einem Clip werden Kandidaten für ID-Wechsel pro Spur-Minute automatisch berechnet (`id_switch_candidates.json`, `summary.json`), mit Vergleichsbildern je Kandidat (`render/switches/`) stichprobenartig geprüft (Methode siehe Messregeln) und im Bericht notiert.
+### T4b Kamerabewegung (ca. 3 bis 4 h)
+- Ausgelöst durch die Prüfung auf run-003: Die ID-Wechsel-Kandidaten fallen gehäuft in Abschnitte mit Schwenk (siehe `docs/entscheidungen/0008-kamerabewegung-t4b.md`).
+- Kamerabewegung (Verschiebung, Drehung, Zoom) wird je Bild aus dem Video geschätzt und als eigene Stufe in `camera.json` (mit `schema_version`) im Lauf-Ordner gespeichert; fehlgeschlagene Schätzung = `null`, nicht 0 und nicht Einheitsmatrix. Der Tracker verschiebt seine Vorhersage mit der Kamerabewegung und liest weiterhin nur Dateien.
+- Schätzer hinter einem Port; ob der Ausgleich läuft, kommt aus dem Aufnahme-Profil (`camera_motion`) und kann per Aufruf-Argument überschrieben werden. Parameter in der Konfiguration.
+- Bewusst nicht in T4b: Erkennen und Ausschließen von Jubel-/Zoomabschnitten, Wiedererkennung nach Aussehen.
+- AK 1: Tests mit künstlichen Daten: Verschieben sich alle Boxen gemeinsam (Schwenk) oder werden sie gemeinsam skaliert (Zoom), bleiben die IDs erhalten, wenn die Kamerabewegung bekannt ist. Der Schätzer findet eine bekannte künstliche Verschiebung und Skalierung wieder. `null` wird als fehlend gespeichert und gelesen.
+- AK 2: Auf clip1 (dieselben Erkennungen wie run-003) stehen Kandidaten pro Spur-Minute ohne und mit Ausgleich sowie der Anteil der Bilder mit `null` im Bericht; die Vergleichsbilder werden stichprobenartig wie in T4 geprüft.
+- AK 3: `pytest` und `ruff check .` grün; Schichtentest unverändert.
 ### T5 Teamzuordnung (ca. 1 bis 2 h)
 - Zuordnung über Trikotfarben, Torhüter und Schiedsrichter getrennt behandelt (z. B. als Ausreißer).
 - AK: Anteil richtig zugeordneter Spieler auf den 60 beschrifteten Bildern steht im Bericht.
@@ -86,7 +94,7 @@ Kalibrierung und Minimap (Woche 2), Heatmaps, Weboberfläche, Warteschlange, Age
 - Entscheidungsnotiz: Welcher Detektor, Kacheln ja oder nein, welches N, warum (inklusive Lizenz-Überlegung).
 - AK: Bericht liegt vor, Entscheidung begründet.
 ## Reihenfolge
-T0 → T1 → T2 → T3 → T3b → T4 → T5 → T6 → T7. T2 und T1 können sich überschneiden, T3 braucht T2, T4 baut auf der Struktur aus T3b auf.
+T0 → T1 → T2 → T3 → T3b → T4 → T4b → T5 → T6 → T7. T2 und T1 können sich überschneiden, T3 braucht T2, T4 baut auf der Struktur aus T3b auf.
  
 ## Definition of Done
 Alles im Git, Tests grün, Bericht erstellt, alle Änderungen vom Entwickler selbst gelesen (Diff-Review), Entscheidungsnotiz geschrieben, Entscheidung und Lernpunkte kurz im Projekt festgehalten.
@@ -110,6 +118,8 @@ Alles im Git, Tests grün, Bericht erstellt, alle Änderungen vom Entwickler sel
 - Weiteres Material: Am Sonntag (15.11.2026) wird ein weiteres Spiel gefilmt. Danach Testset, Brief und Beschreibung anpassen (Auflösung, Perspektive).
 - Grenze für nah/fern in Boxhöhe nach Sichtung der Daten festlegen.
 ## Änderungen
+**v1.6 gegenüber v1.5 (23.11.2026):** Neue Aufgabe T4b (Kamerabewegung schätzen, als Stufe `camera.json` speichern, Tracker-Vorhersage damit verschieben) mit AK, zwischen T4 und T5 eingereiht. Auslöser: Auf run-003 liegen 83 % der Kandidaten in Abschnitten mit starkem Schwenk (Zufall: 43 %). Grundlage: `docs/entscheidungen/0008-kamerabewegung-t4b.md`.
+
 **v1.5 gegenüber v1.4 (23.11.2026):** T4: Handzählung ersetzt durch automatische Kandidaten für ID-Wechsel pro Spur-Minute mit Stichprobenprüfung an Vergleichsbildern (Indikator, keine Zählung). Messregel ID-Wechsel und AK angepasst; Wiedereintritte werden nicht mehr getrennt gezählt, sondern per Bildrand-Regel ausgeschlossen. Grundlage: `docs/entscheidungen/0007-id-wechsel-kandidaten.md`.
 
 **v1.4 gegenüber v1.3 (18.11.2026):** T4 präzisiert (Stufen mit Dateien, RF-DETR Ganzbild in der Entwicklung, Kamerabewegung als möglicher Folgeschritt T4b), Zeitrahmen T4 auf 3 bis 4 h. Messregel ID-Wechsel ergänzt: Stichprobe 6 bis 8 Spieler, Wechsel pro Spieler-Minute mit Beobachtungszeit, Wiedereintritte getrennt gezählt und nicht als Wechsel. Grundlage: `docs/entwuerfe/t4-spezifikation.md` nach Architektur-Prüfung.

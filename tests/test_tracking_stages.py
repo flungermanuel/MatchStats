@@ -59,7 +59,8 @@ class FakeTracker:
     def __init__(self) -> None:
         self.args = None
 
-    def track(self, frames, frame_count, frame_size):
+    def track(self, frames, frame_count, frame_size, camera=None):
+        # camera: seit T4b reicht track_stage den Kamerapfad mit durch
         self.args = (list(frames), frame_count, frame_size)
         point = TrackPoint(0, 1.0, 2.0, 3.0, 4.0, True, 0.9)
         return [Track(id=1, points=(point,))]

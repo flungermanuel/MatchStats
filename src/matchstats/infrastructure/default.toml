@@ -31,3 +31,28 @@ track_edge_margin_px = 40
 # einer alten und höchstens so viele Boxhöhen von deren letzter Position entfernt.
 switch_max_gap_seconds = 1.0
 switch_max_distance_heights = 1.0
+
+# Kamerabewegung (T4b). Startwerte sind geraten und noch nicht an echten Videos gemessen.
+# Ausgleich an/aus kommt aus dem Aufnahme-Profil (siehe [camera_motion_presets]). Das Preset
+# schlägt eine eigene Datei (--config); überschreiben lässt es sich nur über `settings` im
+# clip.json oder per Aufruf (matchstats track --camera / --no-camera).
+# Verkleinerungsfaktor des Bildes für die Schätzung (1.0 = volle Größe).
+camera_downscale = 0.5
+# Schätzungen mit weniger Qualität (Anteil passender Punkte, 0 bis 1) gelten als unbekannt.
+camera_min_quality = 0.5
+# Höchste Zahl verfolgter Merkmalspunkte je Bild.
+camera_max_features = 300
+
+# Aufnahme-Profil "camera_motion" eines Clips -> Parameter. Nur Daten, keine Logik:
+# neue Profilwerte kommen durch einen weiteren Eintrag dazu. "unbekannt" gilt ohne Profilwert.
+[camera_motion_presets.fest]
+camera_compensation = false
+
+[camera_motion_presets.schwenkt]
+camera_compensation = true
+
+[camera_motion_presets.schwenkt_und_zoomt]
+camera_compensation = true
+
+[camera_motion_presets.unbekannt]
+camera_compensation = true

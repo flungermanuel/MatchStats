@@ -84,6 +84,12 @@ def build_parser() -> argparse.ArgumentParser:
     track.add_argument("--run", default=None, help="Vorhandenen Lauf weiterverwenden (run-NNN)")
     track.add_argument("--no-render", action="store_true", help="Kein Video und keine Kontaktbögen")
     track.add_argument("--config", type=Path, default=None, help="Eigene Konfiguration (TOML)")
+    track.add_argument(
+        "--camera",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Kameraausgleich erzwingen oder abschalten (sonst gilt das Aufnahme-Profil)",
+    )
     _add_library_option(track)
     return parser
 
@@ -187,10 +193,14 @@ def _track_command(args: argparse.Namespace) -> int:
     if args.run is not None and args.config is not None:
         print("Warnung: --config wird mit --run ignoriert (Einstellungen des Laufs gelten)",
               file=sys.stderr)  # fmt: skip
+    if args.run is not None and args.camera is not None:
+        print("Warnung: --camera/--no-camera wird mit --run ignoriert "
+              "(Einstellungen des Laufs gelten)", file=sys.stderr)  # fmt: skip
     try:
         job = run_track_job(
             FileLibrary(args.library), args.game, args.clip, args.variant,
             args.config, args.run, render=not args.no_render,
+            overrides=None if args.camera is None else {"camera_compensation": args.camera},
         )  # fmt: skip
     except (LibraryError, ValueError, OSError) as err:
         print(f"Fehler: {err}", file=sys.stderr)
@@ -208,7 +218,8 @@ def _track_command(args: argparse.Namespace) -> int:
     )
     seconds = summary["stage_seconds"]
     print(
-        f"Laufzeit (s): Erkennung {seconds['detection']}, Tracking {seconds['tracking']}, "
+        f"Laufzeit (s): Erkennung {seconds['detection']}, Kamera {seconds['camera']}, "
+        f"Tracking {seconds['tracking']}, "
         f"Darstellung {seconds['render']}; "
         f"Erkennung wiederverwendet: {summary['detections_reused']}"
     )

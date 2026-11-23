@@ -1,6 +1,6 @@
 # matchstats: Systemkarte
 
-Stand: 2026-11-23, nach T4 (Tracking, ID-Wechsel-Kandidaten statt Handzählung). Zwei Teile:
+Stand: 2026-11-23, nach T4b (Tracking mit Kamerabewegung, ID-Wechsel-Kandidaten statt Handzählung). Zwei Teile:
 - **Teil A: Zielbild** (abgeleitet aus `docs/workflow-spielanalyse.md`): wie das fertige System aufgebaut ist. Ein **Entwurf zur Bestätigung**, keine Spezifikation. Er ändert weder die Schichten aus CLAUDE.md noch die Woche-1-Spezifikation.
 - **Teil B: Stand heute**: was im Repo existiert. Was nicht als *(geplant)* markiert ist, existiert. **unklar** = im Repo nicht gefunden oder nicht entschieden.
 
@@ -28,7 +28,7 @@ Jede Stufe liest nur Dateien der Vorstufen und schreibt genau ihre eigenen. Bild
 | Nr | Stufe | Eingabe | Ausgabe | Austauschbar über Port | Stand |
 |---|---|---|---|---|---|
 | 0 | Import und Aufbereitung | Rohvideo | `clip.mp4`, `clip.json` | `Library`, später `VideoPreparer` (Deinterlacen) | Import da, Deinterlacen manuell |
-| 1 | Aufnahmeprüfung: Abschnitte, Kamerabewegung | Video | `segments.json`, `camera.json` | `SegmentClassifier`, `CameraMotionEstimator` | geplant (T4b nur bei Bedarf) |
+| 1 | Aufnahmeprüfung: Abschnitte, Kamerabewegung | Video | `segments.json`, `camera.json` | `SegmentClassifier`, `CameraMotionEstimator` | Kamerabewegung **vorhanden** (T4b, `camera.json`); Abschnitte **geplant** |
 | 2 | Erkennung | Video (jedes N-te Bild) | `detections.json` | `Detector` (RF-DETR, YOLO) | **vorhanden** |
 | 3 | Spurbildung | `detections.json` (+ `camera.json`) | `tracks.json` | `Tracker` | **vorhanden** (T4) |
 | 4 | Teamzuordnung und Rollen | Video-Ausschnitte der Spuren, `tracks.json` | `teams.json` (Team, Torhüter, Schiedsrichter, Unsicherheit) | `TeamClassifier` | geplant (T5) |
@@ -39,7 +39,7 @@ Jede Stufe liest nur Dateien der Vorstufen und schreibt genau ihre eigenen. Bild
 
 Stufen 1 bis 3 wirken auf das Video, Stufe 7 und 8 **nie** (nur auf Daten). Das ist die Garantie, dass neue Kennzahlen keinen Bildlauf brauchen.
 
-**Stufenkette und Cache:** Jede Stufe hat `stage_params` (ihre Parameter), und die Dateien der Vorstufen. Passt beides zur gespeicherten Datei, wird die Stufe übersprungen. Heute gilt das nur für die Erkennung (Abschnitt 3); die Verallgemeinerung kommt erst, wenn die zweite teure Stufe (Kalibrierung oder Teams) existiert (Bremse: nicht vorher bauen).
+**Stufenkette und Cache:** Jede Stufe hat `stage_params` (ihre Parameter), und die Dateien der Vorstufen. Passt beides zur gespeicherten Datei, wird die Stufe übersprungen. Heute gilt das für Erkennung und Kamerabewegung (Abschnitt 3); die Verallgemeinerung kommt erst, wenn die zweite teure Stufe (Kalibrierung oder Teams) existiert (Bremse: nicht vorher bauen).
 
 ## A3. Anwendungsfälle und Einstiegspunkte
 
@@ -75,7 +75,7 @@ Die vier Schichten aus CLAUDE.md bleiben unverändert (`cli -> infrastructure ->
 ## A5. Abweichungen und Lücken gegenüber dem heutigen Stand (zur Entscheidung)
 1. **Mannschaften im Spiel** (`match.json`) fehlen. Entschieden: Der Anwender wählt seine Mannschaft, Auswertung aus deren Sicht. Umsetzung als Vorschlag in `docs/entwuerfe/zielbild-entscheidungen.md`.
 2. **Korrekturen** als eigene Datei sind in keiner Spezifikation vorgesehen. Ohne sie bleiben Fehlzuordnungen dauerhaft in den Kennzahlen.
-3. **Aufnahmeprüfung (Stufe 1)** steht in der Woche-1-Spezifikation nur als T4b (Kamerabewegung). Das Ausschließen von Jubel-/Zoomabschnitten ist im Brief verlangt, in keiner Aufgabe verplant.
+3. **Aufnahmeprüfung (Stufe 1)** steht in der Woche-1-Spezifikation nur als T4b (Kamerabewegung, umgesetzt). Abschnitte und das Ausschließen von Jubel-/Zoomabschnitten sind im Brief verlangt, in keiner Aufgabe verplant.
 4. **Spielfeldfilter** (Woche 2) braucht die Kalibrierung; bis dahin verfälschen Ordner/Bank die Spurzahlen.
 5. **Tracker in `application/`** statt `infrastructure/` (siehe Abschnitt 6): Bei mehreren Trackern wird das wieder aktuell.
 6. **`matchstats run`** ist der älteste Pfad und duplizierte den Ablauf von `track`. Bei der ersten Stufe, die ihn berührt (T5/T6), sollte er entweder auf den neuen Ablauf zeigen oder entfallen.
@@ -90,15 +90,16 @@ Abhängigkeiten zeigen nur nach innen: `cli` -> `infrastructure` -> `application
 
 | Schicht | Ordner in `src/matchstats/` | Inhalt heute | darf importieren |
 |---|---|---|---|
-| domain | `domain/` | Reine Datentypen und Regeln: `Settings`, `RunResult`, `Detection` (IoU, NMS), Tracking-Typen (`tracking.py`: `FrameDetections`, `TrackPoint`, `Track`, `DetectionsDoc`), Bibliotheks-, Testset-, Mess- und Kachel-Typen. Keine Dateizugriffe | nur domain |
-| application | `application/` | Ablauf und Ports: `run_pipeline` (leer), Port `Detector`, `TiledDetector`, `evaluate_detector`, Port `Library`, Port `Tracker` mit `ByteTrackLikeTracker` (`tracker.py`), Stufen `detect_stage` und `track_stage` mit den Ports `FrameSource` und `StageStore` (`tracking_stages.py`), `summarize_tracks` | domain, application |
-| infrastructure | `infrastructure/` | Außenwelt: Parameter laden, Video bildweise lesen (OpenCV), Detektoren (RF-DETR, YOLO), Dateien schreiben und lesen, Darstellung (Video, Kontaktbögen), Bibliothek als Dateien, Verdrahtung des Track-Laufs (`tracking_job.py`) | domain, application |
+| domain | `domain/` | Reine Datentypen und Regeln: `Settings`, `RunResult`, `Detection` (IoU, NMS), Tracking-Typen (`tracking.py`: `FrameDetections`, `TrackPoint`, `Track`, `DetectionsDoc`), Kamera-Typen (`camera.py`: `CameraMotion`, `CameraPath`, `NO_CAMERA`, `CameraDoc`), Bibliotheks-, Testset-, Mess- und Kachel-Typen. Keine Dateizugriffe | nur domain |
+| application | `application/` | Ablauf und Ports: `run_pipeline` (leer), Port `Detector`, `TiledDetector`, `evaluate_detector`, Port `Library`, Port `Tracker` mit `ByteTrackLikeTracker` (`tracker.py`), Stufen `detect_stage`, `camera_stage` und `track_stage` mit den Ports `FrameSource`, `CameraMotionEstimator` und `StageStore` (`tracking_stages.py`), `summarize_tracks` | domain, application |
+| infrastructure | `infrastructure/` | Außenwelt: Parameter laden, Video bildweise lesen (OpenCV), Detektoren (RF-DETR, YOLO), Dateien schreiben und lesen, Darstellung (Video, Kontaktbögen), Bibliothek als Dateien, Kamera-Schätzung (`opencv_camera.py`), Verdrahtung des Track-Laufs (`tracking_job.py`) | domain, application |
 | cli | `cli.py`, `__main__.py` | Argumente lesen, Schichten verdrahten, Ergebnis melden. Keine Logik | alles |
 
 Begriffe:
 - **Port**: Schnittstelle, also die Festlegung, was ein Baustein können muss. Die Stufen kennen nur den Port, nicht die Umsetzung (RF-DETR, OpenCV).
 - **Stufe**: ein Verarbeitungsschritt mit fester Ein- und Ausgabedatei. Heute: Erkennung und Spurbildung.
 - **Spur (Track)**: Folge von Boxen einer Person mit gleichbleibender ID über die Zeit. Bilder ohne Erkennung werden überbrückt und als `visible: false` markiert.
+- **Kamerabewegung und Kamerapfad**: Schwenk, Drehung und Zoom der Kamera von einem Bild zum nächsten, als 2x3-Matrix. Dazu werden Bildpunkte mit Lucas-Kanade (verfolgt Punkte von Bild zu Bild) verfolgt und mit RANSAC (passt eine Bewegung an und verwirft Ausreißer wie bewegte Spieler) geschätzt. Der Kamerapfad verkettet die Schritte. Fehlt eine Schätzung, steht `null` (unbekannt, nicht "keine Bewegung").
 - **Stufen-Cache**: Die Erkennung wird wiederverwendet, wenn die gespeicherte Datei zu Parametern und Video passt. Siehe Abschnitt 3.
 - **Bibliothek**: Ordner `data\library\` mit Spielen, Clips und Läufen, als JSON-Dateien, keine Datenbank.
 - **Spiel / Clip / Lauf**: Spiel (ID, Name, Datum); Clip (Video eines Spiels, mit Halbzeit und Aufnahme-Profil); Lauf (`run-001`, ... Ordner für einen Verarbeitungslauf auf einem Clip).
@@ -109,13 +110,15 @@ Begriffe:
 
 | Baustein | Datei | Eingabe | Ausgabe |
 |---|---|---|---|
-| CLI `track` (neu in T4) | `cli.py` -> `infrastructure/tracking_job.py` | `--game`, `--clip`, `--variant whole\|tiles`, `--run run-NNN` (optional), `--no-render`, `--config`, `--library` | Neuer Lauf (oder bestehender) im Clip-Ordner, siehe Abschnitt 3 |
+| CLI `track` (neu in T4) | `cli.py` -> `infrastructure/tracking_job.py` | `--game`, `--clip`, `--variant whole\|tiles`, `--run run-NNN` (optional), `--no-render`, `--camera`/`--no-camera`, `--config`, `--library` | Neuer Lauf (oder bestehender) im Clip-Ordner, siehe Abschnitt 3 |
 | CLI `run` | `cli.py`, `application/pipeline.py` | Video, `--out`, `--config` | `tracks.json` (Version 2, **leer**). Nutzt Bibliothek und Tracking **nicht** |
 | CLI `match add`, `clip import`, `clip list` | `cli.py`, `file_library.py`, `clip_table.py` | Spiel-ID, Video, Profil | `match.json`, Clip-Ordner mit Kopie des Videos und `clip.json` (fps, Auflösung, Länge per ffprobe) |
 | CLI `evaluate` | `cli.py`, `evaluation_job.py` | `--game --half` (Bibliothek) oder `--testset --images` (alt) | `report.json`, `report.md`, `overlays\` |
 | CLI `sample-frames` | `cli.py`, `frame_sampler.py` | Videos, `--out`, `--count` | PNGs + `manifest.json`. **Nicht** an die Bibliothek angebunden (siehe 6) |
 | Stufe Erkennung | `application/tracking_stages.py` (`detect_stage`) | `FrameSource` (jedes N-te Bild), `Detector`, `StageStore` | `detections.json` |
-| Stufe Spurbildung | `application/tracking_stages.py` (`track_stage`) + `application/tracker.py` | `detections.json` (nur Datei), `Tracker` | `tracks.json` |
+| Stufe Kamerabewegung (T4b) | `application/tracking_stages.py` (`camera_stage`), Port `application/camera_estimator.py`, Umsetzung `infrastructure/opencv_camera.py` | Video, jedes Bild (verkleinertes Graubild) | `camera.json` (je Bild 2x3-Matrix oder `null`) |
+| Kamerapfad | `domain/camera.py` (`CameraPath`, `NO_CAMERA`) | `camera.json` | verkettet die Bewegungen zwischen zwei Bildern; Tracker verschiebt seine Vorhersage damit |
+| Stufe Spurbildung | `application/tracking_stages.py` (`track_stage`) + `application/tracker.py` | `detections.json` und `camera.json` (optional), `Tracker` | `tracks.json` |
 | Kennzahlen | `application/track_summary.py` | Spuren, Kandidaten | Teil von `summary.json` |
 | ID-Wechsel-Kandidaten | `domain/id_switch.py` (`find_id_switch_candidates`) | Spuren, fps, Bildgröße, Parameter `switch_*` | `id_switch_candidates.json`, Vergleichsbilder `render\switches\switch_NNN.png` |
 | Videoquelle | `infrastructure/video_source.py` (`OpenCvFrameSource`) | Video | Bild für Bild (ein Bild im Speicher), prüft, ob das Video vollständig lesbar ist |
@@ -136,7 +139,7 @@ Begriffe:
 
 ## 3. Datenfluss
 
-**Track-Lauf (T4, `matchstats track --game spiel-001 --clip clip1`):**
+**Track-Lauf (T4 mit Kamerabewegung aus T4b, `matchstats track --game spiel-001 --clip clip1`):**
 ```
 data\library\spiel-001\clip1\clip.mp4 + clip.json   (Video nur lesen; Profil-Überschreibungen gelten bei neuem Lauf)
   |  Neuer Lauf: Settings = default.toml + --config + clip.json; run.json wird angelegt
@@ -148,7 +151,11 @@ Stufe 1  Erkennung (detect_stage): jedes detect_every-te Bild -> RF-DETR -> Filt
          Dann wird weder das Video gelesen noch der Detektor gebaut (summary: detections_reused = true).
   -> run-NNN\detections.json
   v
-Stufe 2  Spurbildung (track_stage): liest nur detections.json, läuft immer neu (Sekunden)
+Stufe 1b Kamerabewegung (camera_stage, nur wenn `camera_compensation` an ist): liest jedes Bild des Videos, schätzt Schwenk/Zoom
+         Cache: camera.json wird wiederverwendet, wenn `camera_downscale`, `camera_min_quality`, `camera_max_features` und das Video gleich sind.
+  -> run-NNN\camera.json
+  v
+Stufe 2  Spurbildung (track_stage): liest detections.json und camera.json (ohne Ausgleich: nur detections.json), läuft immer neu (Sekunden)
   -> run-NNN\tracks.json
   v
 Darstellung (optional, --no-render schaltet ab)
@@ -180,13 +187,15 @@ Gemeinsam: UTF-8, Einrückung 2, `schema_version` als erstes Feld. Fehlende Wert
 - `clip.json` (v1): `{schema_version, id, match_id, half (1, 2 oder null), source_file, fps, width, height, duration_s, profile: {angle, camera_motion, notes}, settings: {}}`. `settings` sind Profil-Überschreibungen; der Import schreibt heute immer `{}`.
 - `run.json` (v1): `{schema_version, id ("run-001"), created, clip_id, settings: {aufgelöste Parameter, inkl. track_*}}`.
 - `detections.json` (v1, `domain/tracking.py`): `source`, `detector` (z. B. `rfdetr-small-whole`), `fps`, `frame_count`, `frame_size`, `stage_params` (Cache-Schlüssel), `versions` (Bibliotheken, Modell), `frames: [{frame, detections: [{x, y, w, h, score}]}]`. Nur Bilder mit `detect_every`, nur Scores >= `detect_min_score`.
+- `camera.json` (v1, `domain/camera.py`, nur mit Kameraausgleich): `source`, `fps`, `frame_count`, `frame_size`, `stage_params` (Cache-Schlüssel), `versions`, `motions: [{frame, matrix, quality}]`. `frame` = Bild f (ab 1), `matrix` = 2x3-Matrix von Bild f-1 nach Bild f oder `null` (Schätzung fehlgeschlagen oder zu schwach, nicht 0), `quality` = Anteil der zur Bewegung passenden Punkte (0 bis 1) oder `null`.
 - `tracks.json` (**v2**, `domain/result.py`): `source`, `config` (aufgelöste Parameter; Schlüssel heißt hier `config`), `fps`, `frame_count`, `versions`, `tracks: [{id, points: [{frame, x, y, w, h, visible, score, uncertainty}]}]`. Punkte von erstem bis letztem Treffer; Lücken linear interpoliert (`visible: false`, `score: null`). `uncertainty` ist in T4 immer `null` (Platzhalter für T6). Version 1 wird mit Meldung abgelehnt.
 - `id_switch_candidates.json` (v1): Liste `candidates` mit `old_id`, `new_id`, `end_frame`, `start_frame`, `distance_in_heights`. Nur Kandidaten, keine bestätigten Wechsel.
-- `summary.json` (v2, `infrastructure/tracking_job.py`): `id_switch_candidates`, `track_minutes`, `id_switch_candidates_per_track_minute` und `track_count`, `tracks_per_minute`, `mean_track_seconds`, `visible_share`, `stage_seconds` (`detection`, `tracking`, `render`; `null` = Stufe nicht gelaufen), `detections_reused`. Ohne Spuren oder ohne fps bleiben Kennzahlen `null`.
-- Erlaubte Profilwerte (`domain/library.py`): `angle` = `tribuene_hoch`, `seitenlinie`, `ecke`, `hinter_tor`, `sonstige`; `camera_motion` = `fest`, `schwenkt`, `schwenkt_und_zoomt`.
+- `summary.json` (v3, `infrastructure/tracking_job.py`; neu in v3: `camera_compensation` an/aus und `camera_null_share`, der Anteil der Bilder ohne Kameraschätzung; `null` = ohne Ausgleich gelaufen, nicht 0): `id_switch_candidates`, `track_minutes`, `id_switch_candidates_per_track_minute` und `track_count`, `tracks_per_minute`, `mean_track_seconds`, `visible_share`, `stage_seconds` (`detection`, `tracking`, `render`; `null` = Stufe nicht gelaufen), `detections_reused`. Ohne Spuren oder ohne fps bleiben Kennzahlen `null`.
+- Erlaubte Profilwerte (`domain/library.py`): `angle` = `tribuene_hoch`, `seitenlinie`, `ecke`, `hinter_tor`, `sonstige`; `camera_motion` = `fest`, `schwenkt`, `schwenkt_und_zoomt` (ohne Angabe gilt `unbekannt`, mit Ausgleich an).
 
 Parameter (`domain/settings.py`, Standardwerte, auch in `default.toml`):
 - Erkennung: `detect_every` 5, `detector_model` "small", `score_threshold` 0,3, `tile_size` 640, `tile_overlap` 0,2, `nms_iou` 0,5.
+- Kamera (T4b): `camera_compensation` (an/aus; Voreinstellung aus dem Aufnahme-Profil über `[camera_motion_presets]` in `default.toml`: fest = aus, schwenkt, schwenkt_und_zoomt, unbekannt = an). Schichtung: Standard -> Datei -> Aufnahme-Profil -> `clip.json` -> Aufruf (`track --camera`/`--no-camera`). `camera_downscale` 0,5, `camera_min_quality` 0,5, `camera_max_features` 300 (Startwerte, geraten).
 - Tracking (T4): `detect_min_score` 0,1 (Filter bei der Erkennung), `track_high_score` 0,4 (ab hier darf eine Spur eröffnet werden), `track_match_iou` 0,3 (Mindest-Überlappung der Zuordnung), `track_max_lost_seconds` 1,5, `track_min_hits` 3 (Treffer bis zur Bestätigung), `track_edge_margin_px` 40 (Spur am Bildrand endet sofort).
 
 ## 5. Wo was liegt
@@ -199,18 +208,22 @@ data\library\                          Bibliothek (Standard von --library), nie 
             runs\run-001\  run.json, t3-ergebnis\                      (Migration)
             runs\run-002\  run.json, detections.json, tracks.json, summary.json, render\
             runs\run-003\  wie run-002
+            runs\run-004\  wie run-003, ohne Kameraausgleich (T4b-Vergleich)
+            runs\run-005\  wie run-002, mit camera.json (Kameraausgleich an)
     clip2\, clip3\  clip.mp4, clip.json, testset\
 data\clips\, data\testset\, data\ergebnis\t3\   alte Ordner (T1 bis T3), unverändert
 ```
-- `src/matchstats/`: Code nach Schichten (Abschnitt 1). Neu in T4: `domain/tracking.py`, `domain/id_switch.py`, `application/tracker.py`, `application/tracking_stages.py`, `application/track_summary.py`, `infrastructure/video_source.py`, `stage_files.py`, `json_io.py`, `track_render.py`, `tracking_job.py`.
-- `tests/` (T4): `test_tracker_rules.py` (Zuordnungsregeln), `test_tracking_stages.py` (Stufen und Cache), `test_tracking_files.py` (Dateiformate), `test_track_settings.py`, `test_track_summary.py`, `test_id_switch_candidates.py`, `test_track_render.py`, `test_video_source.py`, `test_track_cli.py`, `test_cli_imports.py` (cv2/scipy erst beim `track`-Befehl geladen). Dazu die älteren Tests und `test_architecture.py`.
+- `src/matchstats/`: Code nach Schichten (Abschnitt 1). Neu in T4: `domain/tracking.py`, `domain/id_switch.py`, `application/tracker.py`, `application/tracking_stages.py`, `application/track_summary.py`, `infrastructure/video_source.py`, `stage_files.py`, `json_io.py`, `track_render.py`, `tracking_job.py`. Neu in T4b: `domain/camera.py`, `application/camera_estimator.py`, `infrastructure/opencv_camera.py`; `camera_stage` in `tracking_stages.py`, `camera.json` in `stage_files.py`. Hilfsskript `tools/plot_camera_motion.py` (Diagramm, nicht Teil der Pipeline).
+- `tests/` (T4): `test_tracker_rules.py` (Zuordnungsregeln), `test_tracking_stages.py` (Stufen und Cache), `test_tracking_files.py` (Dateiformate), `test_track_settings.py`, `test_track_summary.py`, `test_id_switch_candidates.py`, `test_track_render.py`, `test_video_source.py`, `test_track_cli.py`, `test_cli_imports.py` (cv2/scipy erst beim `track`-Befehl geladen). T4b: `test_camera_domain.py`, `test_camera_estimator.py`, `test_camera_files.py`, `test_camera_settings.py`, `test_camera_stage.py`, `test_tracker_camera.py`. Dazu die älteren Tests und `test_architecture.py`.
 - `pyproject.toml`: Extra `track` = `scipy` (BSD) und `opencv-python` (Apache 2.0). Für den echten Lauf braucht `track` zusätzlich Extra `detect` (RF-DETR, siehe README Zeile 69). Ob eine frische Umgebung mit `.[track]` allein läuft, ist **unklar** (nicht geprüft).
-- `docs/entscheidungen/`: 0001 Schichten, 0002 Agententeam, 0003 Testset und Label Studio, 0004 Detektor und Kacheln, 0005 Bibliothek, 0006 Tracking in Stufen, 0007 ID-Wechsel-Kandidaten.
+- `docs/entscheidungen/`: 0001 Schichten, 0002 Agententeam, 0003 Testset und Label Studio, 0004 Detektor und Kacheln, 0005 Bibliothek, 0006 Tracking in Stufen, 0007 ID-Wechsel-Kandidaten, 0008 Kamerabewegung (T4b).
 
 ## 6. Noch nicht umgesetzt oder unklar
 
 - **ID-Wechsel (AK T4):** nur als automatischer Indikator (Kandidaten pro Spur-Minute), **nicht** von Hand gezählt; `docs/berichte/t4-zaehlung.md` bleibt eine leere Vorlage (Archiv). Auf run-003: 59 Kandidaten, 2,9 pro Spur-Minute. Von 8 per Auge angesehenen Kandidaten wirken 6 echt und 2 falsch (Kamerabewegung, Gedränge). Das ist keine Messung der echten Fehlerrate; die Standardschwellen (1,0 s, 1,0 Boxhöhen) sind geraten.
-- **Kamerabewegung (T4b):** nicht umgesetzt. Die Vorhersage nimmt keine Schwenk- oder Zoombewegung heraus. Umsetzung nur, wenn die Zählung deutlich schlecht ist.
+- **Kamerabewegung (T4b): umgesetzt, nur der Teil Kamerabewegung.** Der Tracker verschiebt seine Vorhersage mit dem Kamerapfad. Interpolation der Zwischenbilder und Kandidatensuche rechnen weiter ohne Kamera. Abschnitte und das Ausschließen von Jubel-/Zoomabschnitten bleiben geplant.
+  - Ergebnis clip1 (gleiche Erkennungen): ohne Ausgleich run-004: 59 Kandidaten, 2,90 pro Spur-Minute, 226 Spuren, mittlere Spurlänge 5,4 s (identisch zu run-003). Mit Ausgleich run-005: 6 Kandidaten, 0,25 pro Spur-Minute, 73 Spuren, mittlere Spurlänge 19,7 s. Null-Anteil 0 %. Kamera-Schätzung 65 s für 60 s Video.
+  - Grenzen: Die Kandidaten erfassen nur Abrisse, keine Verwechslungen. In der Stichprobe (Kontaktbogen 30 s) ist eine Spur auf einen falschen Spieler gerutscht. Das ist ein Indiz, keine Fehlerrate. Die Startwerte für Kameraschätzung sind geraten.
 - **Spielfeldfilter (Woche 2):** Zuschauer, Ordner und Bank erzeugen heute Spuren und verfälschen die Zahlen.
 - **Kacheln (`--variant tiles`)** laufen im `track`-Befehl, sind aber nicht am echten Clip getestet. Laufzeit und Ergebnis sind **unklar**.
 - **Stufen-Cache:** prüft Name, Bildanzahl und Größe des Videos, keinen Inhalts-Hash. Die gespeicherten `versions` werden beim Wiederverwenden nicht verglichen. Mit `--run` wird `detections.json` im selben Lauf überschrieben, wenn die Parameter nicht passen.

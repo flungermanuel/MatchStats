@@ -1,6 +1,6 @@
-"""Stufen des Trackings: Erkennung (detect_stage) und Spurbildung (track_stage).
+"""Stufen des Trackings: Erkennung (detect_stage), Kamerabewegung (camera_stage), Spurbildung.
 
-Beide kennen nur Ports (Videoquelle, Detektor, Speicher, Tracker), keine Bibliotheken.
+Alle kennen nur Ports (Videoquelle, Detektor, Schätzer, Speicher, Tracker), keine Bibliotheken.
 """
 
 from collections.abc import Iterator
@@ -9,8 +9,10 @@ from typing import Any, Protocol
 
 import numpy as np
 
+from matchstats.application.camera_estimator import CameraMotionEstimator
 from matchstats.application.detector import Detector
 from matchstats.application.tracker import Tracker
+from matchstats.domain.camera import NO_CAMERA, CameraDoc, CameraPath
 from matchstats.domain.result import RunResult
 from matchstats.domain.settings import Settings
 from matchstats.domain.tracking import DetectionsDoc, FrameDetections
@@ -34,6 +36,12 @@ class StageStore(Protocol):
 
     def save_detections(self, doc: DetectionsDoc) -> None: ...
 
+    def load_camera(self) -> CameraDoc | None:
+        """None, wenn keine (vollständige) Datei vorliegt."""
+        ...
+
+    def save_camera(self, doc: CameraDoc) -> None: ...
+
     def save_tracks(self, result: RunResult) -> None: ...
 
 
@@ -50,7 +58,9 @@ def _stage_params(detector_name: str, settings: Settings) -> dict[str, Any]:
     }
 
 
-def _is_reusable(doc: DetectionsDoc, source: FrameSource, params: dict[str, Any]) -> bool:
+def _is_reusable(
+    doc: DetectionsDoc | CameraDoc, source: FrameSource, params: dict[str, Any]
+) -> bool:
     """Gleiche Parameter und dasselbe Video (Name, Bildanzahl, Bildgröße)."""
     return (
         doc.stage_params == params
@@ -98,15 +108,56 @@ def detect_stage(
     return doc, False
 
 
+def _camera_params(settings: Settings) -> dict[str, Any]:
+    """Alles, was die Kameraschätzung bestimmt (Cache-Schlüssel)."""
+    return {
+        "camera_downscale": settings.camera_downscale,
+        "camera_min_quality": settings.camera_min_quality,
+        "camera_max_features": settings.camera_max_features,
+    }
+
+
+def camera_stage(
+    source: FrameSource,
+    estimator: CameraMotionEstimator,
+    settings: Settings,
+    store: StageStore,
+    versions: dict[str, str],
+) -> tuple[CameraDoc, bool]:
+    """Schätzt die Kamerabewegung auf jedem Bild. Liefert (Dokument, wiederverwendet?).
+
+    Cache wie bei detect_stage: gleiche stage_params und dasselbe Video -> camera.json bleibt,
+    das Video wird nicht gelesen.
+    """
+    params = _camera_params(settings)
+    existing = store.load_camera()
+    if existing is not None and _is_reusable(existing, source, params):
+        return existing, True
+
+    motions = estimator.estimate(source.frames(1))
+    doc = CameraDoc(
+        source=source.name,
+        fps=source.fps,
+        frame_count=source.frame_count,
+        frame_size=source.frame_size,
+        stage_params=params,
+        versions=versions,
+        motions=tuple(motions),
+    )
+    store.save_camera(doc)
+    return doc, False
+
+
 def track_stage(
     doc: DetectionsDoc,
     tracker: Tracker,
     settings: Settings,
     store: StageStore,
     versions: dict[str, str],
+    camera: CameraPath = NO_CAMERA,
 ) -> RunResult:
     """Bildet Spuren aus den Erkennungen. Läuft immer neu und speichert tracks.json."""
-    tracks = tracker.track(doc.frames, doc.frame_count, doc.frame_size)
+    tracks = tracker.track(doc.frames, doc.frame_count, doc.frame_size, camera)
     result = RunResult(
         source=doc.source,
         settings=asdict(settings),

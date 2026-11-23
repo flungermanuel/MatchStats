@@ -1,6 +1,7 @@
-"""Verdrahtet den Track-Lauf: Bibliothek, Lauf, Detektor, Stufen, Darstellung, summary.json."""
+"""Verdrahtet den Track-Lauf: Bibliothek, Lauf, Detektor, Kamera, Stufen, Darstellung, summary."""
 
 import time
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass
 from importlib import metadata
 from pathlib import Path
@@ -16,19 +17,22 @@ from matchstats.application.track_summary import (
     summarize_tracks,
 )
 from matchstats.application.tracker import ByteTrackLikeTracker
-from matchstats.application.tracking_stages import detect_stage, track_stage
+from matchstats.application.tracking_stages import camera_stage, detect_stage, track_stage
+from matchstats.domain.camera import NO_CAMERA, CameraPath
 from matchstats.domain.detection import Detection
 from matchstats.domain.id_switch import find_id_switch_candidates
 from matchstats.domain.settings import Settings
 from matchstats.infrastructure.config_loader import load_settings
 from matchstats.infrastructure.json_io import write_json_atomic
+from matchstats.infrastructure.opencv_camera import OpenCvCameraMotionEstimator
 from matchstats.infrastructure.stage_files import FileStageStore
 from matchstats.infrastructure.track_render import render_tracks
 from matchstats.infrastructure.video_source import OpenCvFrameSource
 
 VARIANTS = ("whole", "tiles")
 SUMMARY_FILE = "summary.json"
-SUMMARY_SCHEMA_VERSION = 2  # 2: Kennzahlen zu ID-Wechsel-Kandidaten ergänzt
+# 2: Kennzahlen zu ID-Wechsel-Kandidaten ergänzt; 3: Kamerabewegung ergänzt
+SUMMARY_SCHEMA_VERSION = 3
 SWITCH_FILE = "id_switch_candidates.json"
 SWITCH_SCHEMA_VERSION = 1
 # Bibliotheken, deren Version im Ergebnis festgehalten wird (nur wenn installiert).
@@ -87,13 +91,19 @@ def run_track_job(
     config: Path | None = None,
     run_id: str | None = None,
     render: bool = True,
+    overrides: Mapping[str, Any] | None = None,
 ) -> TrackJobResult:
     """Erkennen (oder wiederverwenden), tracken, darstellen. Ohne run_id: neuer Lauf."""
     if variant not in VARIANTS:
         raise ValueError(f"Unbekannte Variante {variant!r}, erlaubt: {VARIANTS}")
     clip = library.get_clip(game, clip_id)
     if run_id is None:
-        settings = load_settings(config, profile_overrides=clip.settings)
+        settings = load_settings(
+            config,
+            camera_motion=clip.profile.camera_motion,
+            profile_overrides=clip.settings,
+            overrides=overrides,
+        )
         run_id = library.create_run(game, clip_id, asdict(settings)).id
     else:
         known = {r.id: r for r in library.list_runs(game, clip_id)}
@@ -113,7 +123,12 @@ def run_track_job(
     versions = collect_versions()
     detector_name = f"rfdetr-{settings.detector_model}-{variant}"
 
-    seconds: dict[str, float | None] = {"detection": None, "tracking": None, "render": None}
+    seconds: dict[str, float | None] = {
+        "detection": None,
+        "camera": None,
+        "tracking": None,
+        "render": None,
+    }
     start = time.perf_counter()
     doc, reused = detect_stage(
         source, _LazyDetector(variant, settings), detector_name, settings, store, versions
@@ -121,9 +136,23 @@ def run_track_job(
     if not reused:
         seconds["detection"] = time.perf_counter() - start
 
+    camera: CameraPath = NO_CAMERA
+    camera_null_share: float | None = None  # None = ohne Ausgleich gelaufen (nicht 0)
+    if settings.camera_compensation:
+        start = time.perf_counter()
+        camera_doc, camera_reused = camera_stage(
+            source, OpenCvCameraMotionEstimator(settings), settings, store, versions
+        )
+        if not camera_reused:
+            seconds["camera"] = time.perf_counter() - start
+        camera = camera_doc.path()
+        motions = camera_doc.motions
+        if motions:
+            camera_null_share = sum(m.matrix is None for m in motions) / len(motions)
+
     start = time.perf_counter()
     tracker = ByteTrackLikeTracker(settings, doc.fps)
-    result = track_stage(doc, tracker, settings, store, versions)
+    result = track_stage(doc, tracker, settings, store, versions, camera)
     seconds["tracking"] = time.perf_counter() - start
 
     candidates = find_id_switch_candidates(
@@ -149,6 +178,8 @@ def run_track_job(
         **summarize_id_switch_candidates(result, candidates),
         "stage_seconds": seconds,  # None = Stufe nicht gelaufen (z. B. Erkennung wiederverwendet)
         "detections_reused": reused,
+        "camera_compensation": settings.camera_compensation,
+        "camera_null_share": camera_null_share,
     }
     write_json_atomic(run_dir / SUMMARY_FILE, summary)
     return TrackJobResult(run_id=run_id, run_dir=run_dir, summary=summary)

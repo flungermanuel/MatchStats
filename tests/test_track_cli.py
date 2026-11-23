@@ -130,6 +130,39 @@ def test_summary_has_no_detection_seconds_when_the_detections_were_reused(librar
     assert summary["stage_seconds"]["detection"] is None
 
 
+def _summary(library, run_id="run-001"):
+    path = library.run_dir(GAME, CLIP, run_id) / "summary.json"
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def test_summary_has_schema_version_3_with_camera_fields(library, detector):
+    _track(library, "--no-render")
+
+    summary = _summary(library)
+    assert summary["schema_version"] == 3
+    assert "camera_compensation" in summary
+    assert "camera_null_share" in summary
+
+
+def test_track_with_no_camera_runs_without_compensation_and_reports_no_null_share(
+    library, detector
+):
+    assert _track(library, "--no-camera", "--no-render") == 0
+
+    summary = _summary(library)
+    assert summary["camera_compensation"] is False
+    assert summary["camera_null_share"] is None  # ohne Ausgleich gelaufen, nicht 0
+
+
+def test_track_with_camera_reports_the_share_of_failed_estimates(library, detector):
+    assert _track(library, "--camera", "--no-render") == 0
+
+    summary = _summary(library)
+    assert summary["camera_compensation"] is True
+    # Das Testvideo ist einfarbig (keine Merkmale): Schätzung scheitert in allen Bildern
+    assert summary["camera_null_share"] == 1.0
+
+
 def test_track_with_run_and_config_warns_that_config_is_ignored(
     library, detector, tmp_path, capsys
 ):
