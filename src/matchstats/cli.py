@@ -202,6 +202,10 @@ def _track_command(args: argparse.Namespace) -> int:
         f"mittlere Länge (s): {summary['mean_track_seconds']}, "
         f"gesehen: {summary['visible_share']}"
     )
+    print(
+        f"Kandidaten für ID-Wechsel: {summary['id_switch_candidates']}, "
+        f"pro Spur-Minute: {summary['id_switch_candidates_per_track_minute']}"
+    )
     seconds = summary["stage_seconds"]
     print(
         f"Laufzeit (s): Erkennung {seconds['detection']}, Tracking {seconds['tracking']}, "

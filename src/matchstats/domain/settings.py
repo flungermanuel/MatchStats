@@ -24,6 +24,10 @@ class Settings:
     track_max_lost_seconds: float = 1.5
     track_min_hits: int = 3
     track_edge_margin_px: int = 40
+    # Kandidaten für ID-Wechsel (T4): neue Spur beginnt höchstens so viele Sekunden nach dem Ende
+    # einer alten und höchstens so viele Boxhöhen von deren letzter Position entfernt.
+    switch_max_gap_seconds: float = 1.0
+    switch_max_distance_heights: float = 1.0
 
     def __post_init__(self) -> None:
         if self.detect_every < 1:
@@ -47,3 +51,7 @@ class Settings:
             raise ValueError("track_min_hits muss mindestens 1 sein")
         if self.track_edge_margin_px < 0:
             raise ValueError("track_edge_margin_px darf nicht negativ sein")
+        if self.switch_max_gap_seconds < 0:
+            raise ValueError("switch_max_gap_seconds darf nicht negativ sein")
+        if self.switch_max_distance_heights < 0:
+            raise ValueError("switch_max_distance_heights darf nicht negativ sein")

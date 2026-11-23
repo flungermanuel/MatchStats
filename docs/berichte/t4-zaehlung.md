@@ -1,5 +1,7 @@
 # T4 Handzählung der ID-Wechsel (Vorlage, von Hand auszufüllen)
 
+> Archiv: Die Handzählung wurde ersetzt (Spezifikation v1.5, `docs/entscheidungen/0007-id-wechsel-kandidaten.md`). Diese Vorlage bleibt unausgefüllt.
+
 Lauf: `data\library\spiel-001\clip1\runs\run-003` (RF-DETR Ganzbild, `track_high_score` 0,4, `track_min_hits` 3, ohne Kamerabewegung).
 Material: `render\tracks.mp4` (halbe Geschwindigkeit, Box + ID) und `render\sheet_*.png` (alle 2 s).
 Keine Namen, nur Rollen ("Spieler 1 = linker Außenverteidiger, helles Trikot").

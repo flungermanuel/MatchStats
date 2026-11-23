@@ -26,3 +26,8 @@ track_max_lost_seconds = 1.5
 track_min_hits = 3
 # Abstand zum Bildrand, innerhalb dessen eine verlorene Spur sofort endet.
 track_edge_margin_px = 40
+
+# Kandidaten für ID-Wechsel (T4): neue Spur beginnt höchstens so viele Sekunden nach dem Ende
+# einer alten und höchstens so viele Boxhöhen von deren letzter Position entfernt.
+switch_max_gap_seconds = 1.0
+switch_max_distance_heights = 1.0

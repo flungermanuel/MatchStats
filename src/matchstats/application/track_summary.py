@@ -2,7 +2,26 @@
 
 from typing import Any
 
+from matchstats.domain.id_switch import IdSwitchCandidate
 from matchstats.domain.result import RunResult
+
+
+def summarize_id_switch_candidates(
+    result: RunResult, candidates: tuple[IdSwitchCandidate, ...]
+) -> dict[str, Any]:
+    """Anzahl der Kandidaten für ID-Wechsel und Rate pro Spur-Minute (Summe aller Spurlängen).
+
+    Indikator, keine Zählung echter ID-Wechsel. Ohne Spuren oder fps bleibt die Rate None.
+    """
+    fps = result.fps
+    track_minutes = sum(len(t.points) for t in result.tracks) / fps / 60 if fps else None
+    return {
+        "id_switch_candidates": len(candidates),
+        "track_minutes": track_minutes,
+        "id_switch_candidates_per_track_minute": (
+            len(candidates) / track_minutes if track_minutes else None
+        ),
+    }
 
 
 def summarize_tracks(result: RunResult) -> dict[str, Any]:

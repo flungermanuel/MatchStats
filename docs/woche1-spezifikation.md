@@ -1,4 +1,4 @@
-# Woche 1: Von Video zu annotiertem Video (Spezifikation v1.4, 18.11.2026)
+# Woche 1: Von Video zu annotiertem Video (Spezifikation v1.5, 23.11.2026)
  
 Projekt: matchstats. Stand: v1.1 ersetzt v1. Änderungen gegenüber v0 und v1 stehen am Ende.
  
@@ -30,7 +30,7 @@ Kalibrierung und Minimap (Woche 2), Heatmaps, Weboberfläche, Warteschlange, Age
 - **Recall** = getroffene beschriftete Boxen / alle beschrifteten Boxen. **Precision** = Treffer / alle Erkennungen.
 - **Nah/fern:** Recall wird zusätzlich getrennt berichtet nach Boxhöhe in Pixeln (Grenze wird nach Sichtung der Daten festgelegt und im Bericht genannt), weil dort die Kachelfrage entschieden wird.
 - **Auswahl der Testbilder (T2):** 20 Bilder pro Clip, gleichmäßig über die 60 Sekunden gezogen (nicht von Hand ausgesucht), damit die Basislinie nicht geschönt ist.
-- **ID-Wechsel (T4):** Ein Wechsel liegt vor, wenn ein Spieler, den man von Hand über den Clip verfolgt, seine ID ändert oder zwei Spielern die IDs vertauscht werden. Gezählt wird an einer Stichprobe von 6 bis 8 vorab gewählten Spielern (nah und fern gemischt) auf einem Clip; Ergebnis = Wechsel pro Spieler-Minute, die Summe der Beobachtungszeit steht im Bericht, Methode ebenfalls. **Wiedereintritte** (Spieler verlässt das Bild durch Schwenk/Zoom und kommt mit neuer ID zurück) zählen nicht als Wechsel, werden aber getrennt gezählt und berichtet (Wiedererkennung nach Aussehen ist in Woche 1 ausgeschlossen).
+- **ID-Wechsel (T4):** Gemessen werden **Kandidaten** für ID-Wechsel, automatisch aus den Spuren (kein Handzählen). Kandidat: eine Spur endet mitten im Bild (nicht am Bildrand, nicht am Clip-Ende), und höchstens `switch_max_gap_seconds` (Standard 1,0 s) später beginnt höchstens `switch_max_distance_heights` (Standard 1,0) Boxhöhen entfernt eine neue; jede Spur wird höchstens einmal zugeordnet (nächste zuerst). Ergebnis = Kandidaten pro Spur-Minute (Summe aller Spurlängen in Minuten), die Summe der Spurzeit steht im Bericht. Das ist ein **Indikator, keine Zählung**: Kamerabewegung, Gedränge und Zuschauer erzeugen falsche Kandidaten, Lücken über der Schwelle fallen durch. Zur Einordnung wird eine Stichprobe von mindestens 8 Kandidaten (gleichmäßig gewählt, nicht ausgesucht) an den Vergleichsbildern geprüft und der Anteil echter Wechsel berichtet. Wiedererkennung nach Aussehen ist in Woche 1 ausgeschlossen.
 - **Teamzuordnung (T5):** Anteil der Spieler (Feldspieler mit Team A/B, Torhüter, Schiedsrichter als eigene Klassen), deren Klasse auf den 60 Bildern stimmt.
 - **Laufzeit:** Zeit pro Bild und Gesamtzeit je Variante werden in T3/T6 mitgemessen.
 - Keine Zielwerte in Woche 1, nur Basislinie.
@@ -72,8 +72,8 @@ Kalibrierung und Minimap (Woche 2), Heatmaps, Weboberfläche, Warteschlange, Age
 ### T4 Tracking (ca. 3 bis 4 h)
 - Konstante IDs über die Zeit (ByteTrack-ähnlicher Ansatz), Erkennung nur auf jedem N-ten Bild, Lücken werden vom Tracker überbrückt.
 - Stufen mit gespeicherten Zwischenergebnissen im Lauf-Ordner (`detections.json`, `tracks.json`); das Tracking liest nur Dateien und kann ohne neue Erkennung wiederholt werden. Detektor in der Entwicklung: RF-DETR Ganzbild.
-- Kamerabewegung (Schwenk/Zoom herausrechnen) ist **nicht** Teil von T4; sie folgt als eigener Schritt T4b nur, wenn die Handzählung ohne Ausgleich deutlich schlecht ausfällt. Grundlage: `docs/entwuerfe/t4-spezifikation.md`.
-- AK: Auf einem Clip werden ID-Wechsel pro Minute von Hand gezählt (Methode siehe Messregeln) und im Bericht notiert.
+- Kamerabewegung (Schwenk/Zoom herausrechnen) ist **nicht** Teil von T4; sie folgt als eigener Schritt T4b nur, wenn die Kandidaten-Rate und die Stichprobe der Vergleichsbilder ohne Ausgleich deutlich schlecht ausfallen. Grundlage: `docs/entwuerfe/t4-spezifikation.md`.
+- AK: Auf einem Clip werden Kandidaten für ID-Wechsel pro Spur-Minute automatisch berechnet (`id_switch_candidates.json`, `summary.json`), mit Vergleichsbildern je Kandidat (`render/switches/`) stichprobenartig geprüft (Methode siehe Messregeln) und im Bericht notiert.
 ### T5 Teamzuordnung (ca. 1 bis 2 h)
 - Zuordnung über Trikotfarben, Torhüter und Schiedsrichter getrennt behandelt (z. B. als Ausreißer).
 - AK: Anteil richtig zugeordneter Spieler auf den 60 beschrifteten Bildern steht im Bericht.
@@ -104,12 +104,14 @@ Alles im Git, Tests grün, Bericht erstellt, alle Änderungen vom Entwickler sel
 - Gleiche Trikotfarben bei Torhütern/Schiedsrichtern.
 - Rechenzeit auf der CPU: Gegenmittel sind jedes N-te Bild, kleine Modelle, ein Hauptclip, Läufe über Nacht. Falls das nicht reicht, kostenlose GPU-Zeit (Colab/Kaggle) als Notnagel.
 - Vorbeschriftung kann die Messung zugunsten des Detektors verzerren; deshalb jede Box prüfen.
-- Basislinie des Trackings ist grob (Handzählung auf einem Clip); für den Prüfstand in Woche 5 braucht es später beschriftete Spuren.
+- Basislinie des Trackings ist grob (Kandidaten-Rate auf einem Clip, stichprobenartig geprüft); für den Prüfstand in Woche 5 braucht es später beschriftete Spuren.
 - Nutzungsrechte: Absprache mit dem Chef ist nur mündlich. Für Woche 1 unkritisch (alles lokal), muss aber schriftlich stehen, bevor Ergebnisse gezeigt oder weitergegeben werden.
 ## Offene Punkte
 - Weiteres Material: Am Sonntag (15.11.2026) wird ein weiteres Spiel gefilmt. Danach Testset, Brief und Beschreibung anpassen (Auflösung, Perspektive).
 - Grenze für nah/fern in Boxhöhe nach Sichtung der Daten festlegen.
 ## Änderungen
+**v1.5 gegenüber v1.4 (23.11.2026):** T4: Handzählung ersetzt durch automatische Kandidaten für ID-Wechsel pro Spur-Minute mit Stichprobenprüfung an Vergleichsbildern (Indikator, keine Zählung). Messregel ID-Wechsel und AK angepasst; Wiedereintritte werden nicht mehr getrennt gezählt, sondern per Bildrand-Regel ausgeschlossen. Grundlage: `docs/entscheidungen/0007-id-wechsel-kandidaten.md`.
+
 **v1.4 gegenüber v1.3 (18.11.2026):** T4 präzisiert (Stufen mit Dateien, RF-DETR Ganzbild in der Entwicklung, Kamerabewegung als möglicher Folgeschritt T4b), Zeitrahmen T4 auf 3 bis 4 h. Messregel ID-Wechsel ergänzt: Stichprobe 6 bis 8 Spieler, Wechsel pro Spieler-Minute mit Beobachtungszeit, Wiedereintritte getrennt gezählt und nicht als Wechsel. Grundlage: `docs/entwuerfe/t4-spezifikation.md` nach Architektur-Prüfung.
 
 **v1.3 gegenüber v1.2 (18.11.2026):** Neue Aufgabe T3b (Spiel-/Clip-/Lauf-Struktur mit Aufnahme-Profil, Halbzeit und Parameter-Schichtung, Bericht je Spiel und Halbzeit) zwischen T3 und T4, Reihenfolge angepasst. Die Struktur unterstützt mehrere Spiele und Profile; die Basislinie ist weiterhin nur auf einem Spiel und einer Perspektive gemessen. Messregeln und Nicht-Ziele unverändert. Grundlage: `docs/entwuerfe/t3b-struktur.md`, gekürzt nach Architektur-Prüfung.

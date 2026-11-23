@@ -1,6 +1,6 @@
 # matchstats: Systemkarte
 
-Stand: 2026-11-20, nach T4 (Tracking, committet; Handzählung offen). Zwei Teile:
+Stand: 2026-11-23, nach T4 (Tracking, ID-Wechsel-Kandidaten statt Handzählung). Zwei Teile:
 - **Teil A: Zielbild** (abgeleitet aus `docs/workflow-spielanalyse.md`): wie das fertige System aufgebaut ist. Ein **Entwurf zur Bestätigung**, keine Spezifikation. Er ändert weder die Schichten aus CLAUDE.md noch die Woche-1-Spezifikation.
 - **Teil B: Stand heute**: was im Repo existiert. Was nicht als *(geplant)* markiert ist, existiert. **unklar** = im Repo nicht gefunden oder nicht entschieden.
 
@@ -69,7 +69,7 @@ Die vier Schichten aus CLAUDE.md bleiben unverändert (`cli -> infrastructure ->
 - **Konfiguration:** Standard, eigene Datei, Aufnahme-Profil, Aufruf-Argumente; das Ergebnis steht in `run.json`. Neue Aufnahme-Profile sind Daten, kein Code.
 - **Versionen:** `schema_version` in jeder Datei; Modell- und Bibliotheksversionen im Ergebnis eines Laufs.
 - **Fortschritt und Wiederaufnahme:** Jeder Lauf zeigt je Stufe "fertig/offen"; ein Abbruch lässt sich ab der letzten fertigen Stufe fortsetzen. Heute nicht vollständig (Abschnitt 6, "Lauf-Ordner").
-- **Qualität und Messbarkeit:** Prüfstände (Testset, Handzählung, später beschriftete Spuren) laufen gegen dieselben Dateien wie der Anwender.
+- **Qualität und Messbarkeit:** Prüfstände (Testset, ID-Wechsel-Kandidaten, später beschriftete Spuren) laufen gegen dieselben Dateien wie der Anwender.
 - **Datenschutz:** Keine Namen, keine Rohdaten im Git oder bei externen Diensten.
 
 ## A5. Abweichungen und Lücken gegenüber dem heutigen Stand (zur Entscheidung)
@@ -116,7 +116,8 @@ Begriffe:
 | CLI `sample-frames` | `cli.py`, `frame_sampler.py` | Videos, `--out`, `--count` | PNGs + `manifest.json`. **Nicht** an die Bibliothek angebunden (siehe 6) |
 | Stufe Erkennung | `application/tracking_stages.py` (`detect_stage`) | `FrameSource` (jedes N-te Bild), `Detector`, `StageStore` | `detections.json` |
 | Stufe Spurbildung | `application/tracking_stages.py` (`track_stage`) + `application/tracker.py` | `detections.json` (nur Datei), `Tracker` | `tracks.json` |
-| Kennzahlen | `application/track_summary.py` | Spuren | Teil von `summary.json` |
+| Kennzahlen | `application/track_summary.py` | Spuren, Kandidaten | Teil von `summary.json` |
+| ID-Wechsel-Kandidaten | `domain/id_switch.py` (`find_id_switch_candidates`) | Spuren, fps, Bildgröße, Parameter `switch_*` | `id_switch_candidates.json`, Vergleichsbilder `render\switches\switch_NNN.png` |
 | Videoquelle | `infrastructure/video_source.py` (`OpenCvFrameSource`) | Video | Bild für Bild (ein Bild im Speicher), prüft, ob das Video vollständig lesbar ist |
 | Dateien der Stufen | `infrastructure/stage_files.py` (`FileStageStore`) | Lauf-Ordner | `detections.json` lesen/schreiben; `tracks.json` über `result_store.py` |
 | JSON ohne halbe Dateien | `infrastructure/json_io.py` | Daten | Erst `.tmp`, dann umbenannt |
@@ -153,7 +154,7 @@ Stufe 2  Spurbildung (track_stage): liest nur detections.json, läuft immer neu 
 Darstellung (optional, --no-render schaltet ab)
   -> run-NNN\render\tracks.mp4, render\sheet_NNNNNN.png
   v
-Kennzahlen -> run-NNN\summary.json (Spuren, pro Minute, mittlere Länge, Anteil gesehen, Laufzeiten)
+Kennzahlen -> run-NNN\summary.json (Spuren, pro Minute, mittlere Länge, Anteil gesehen, ID-Wechsel-Kandidaten pro Spur-Minute, Laufzeiten)
 ```
 Regel: Jede Stufe speichert ihr Zwischenergebnis auf Platte. Kennzahlen werden aus gespeicherten Daten berechnet, nicht aus dem Video.
 
@@ -180,7 +181,8 @@ Gemeinsam: UTF-8, Einrückung 2, `schema_version` als erstes Feld. Fehlende Wert
 - `run.json` (v1): `{schema_version, id ("run-001"), created, clip_id, settings: {aufgelöste Parameter, inkl. track_*}}`.
 - `detections.json` (v1, `domain/tracking.py`): `source`, `detector` (z. B. `rfdetr-small-whole`), `fps`, `frame_count`, `frame_size`, `stage_params` (Cache-Schlüssel), `versions` (Bibliotheken, Modell), `frames: [{frame, detections: [{x, y, w, h, score}]}]`. Nur Bilder mit `detect_every`, nur Scores >= `detect_min_score`.
 - `tracks.json` (**v2**, `domain/result.py`): `source`, `config` (aufgelöste Parameter; Schlüssel heißt hier `config`), `fps`, `frame_count`, `versions`, `tracks: [{id, points: [{frame, x, y, w, h, visible, score, uncertainty}]}]`. Punkte von erstem bis letztem Treffer; Lücken linear interpoliert (`visible: false`, `score: null`). `uncertainty` ist in T4 immer `null` (Platzhalter für T6). Version 1 wird mit Meldung abgelehnt.
-- `summary.json` (v1, `infrastructure/tracking_job.py`): `track_count`, `tracks_per_minute`, `mean_track_seconds`, `visible_share`, `stage_seconds` (`detection`, `tracking`, `render`; `null` = Stufe nicht gelaufen), `detections_reused`. Ohne Spuren oder ohne fps bleiben Kennzahlen `null`.
+- `id_switch_candidates.json` (v1): Liste `candidates` mit `old_id`, `new_id`, `end_frame`, `start_frame`, `distance_in_heights`. Nur Kandidaten, keine bestätigten Wechsel.
+- `summary.json` (v2, `infrastructure/tracking_job.py`): `id_switch_candidates`, `track_minutes`, `id_switch_candidates_per_track_minute` und `track_count`, `tracks_per_minute`, `mean_track_seconds`, `visible_share`, `stage_seconds` (`detection`, `tracking`, `render`; `null` = Stufe nicht gelaufen), `detections_reused`. Ohne Spuren oder ohne fps bleiben Kennzahlen `null`.
 - Erlaubte Profilwerte (`domain/library.py`): `angle` = `tribuene_hoch`, `seitenlinie`, `ecke`, `hinter_tor`, `sonstige`; `camera_motion` = `fest`, `schwenkt`, `schwenkt_und_zoomt`.
 
 Parameter (`domain/settings.py`, Standardwerte, auch in `default.toml`):
@@ -200,14 +202,14 @@ data\library\                          Bibliothek (Standard von --library), nie 
     clip2\, clip3\  clip.mp4, clip.json, testset\
 data\clips\, data\testset\, data\ergebnis\t3\   alte Ordner (T1 bis T3), unverändert
 ```
-- `src/matchstats/`: Code nach Schichten (Abschnitt 1). Neu in T4: `domain/tracking.py`, `application/tracker.py`, `application/tracking_stages.py`, `application/track_summary.py`, `infrastructure/video_source.py`, `stage_files.py`, `json_io.py`, `track_render.py`, `tracking_job.py`.
-- `tests/` (T4): `test_tracker_rules.py` (Zuordnungsregeln), `test_tracking_stages.py` (Stufen und Cache), `test_tracking_files.py` (Dateiformate), `test_track_settings.py`, `test_track_summary.py`, `test_track_render.py`, `test_video_source.py`, `test_track_cli.py`, `test_cli_imports.py` (cv2/scipy erst beim `track`-Befehl geladen). Dazu die älteren Tests und `test_architecture.py`.
+- `src/matchstats/`: Code nach Schichten (Abschnitt 1). Neu in T4: `domain/tracking.py`, `domain/id_switch.py`, `application/tracker.py`, `application/tracking_stages.py`, `application/track_summary.py`, `infrastructure/video_source.py`, `stage_files.py`, `json_io.py`, `track_render.py`, `tracking_job.py`.
+- `tests/` (T4): `test_tracker_rules.py` (Zuordnungsregeln), `test_tracking_stages.py` (Stufen und Cache), `test_tracking_files.py` (Dateiformate), `test_track_settings.py`, `test_track_summary.py`, `test_id_switch_candidates.py`, `test_track_render.py`, `test_video_source.py`, `test_track_cli.py`, `test_cli_imports.py` (cv2/scipy erst beim `track`-Befehl geladen). Dazu die älteren Tests und `test_architecture.py`.
 - `pyproject.toml`: Extra `track` = `scipy` (BSD) und `opencv-python` (Apache 2.0). Für den echten Lauf braucht `track` zusätzlich Extra `detect` (RF-DETR, siehe README Zeile 69). Ob eine frische Umgebung mit `.[track]` allein läuft, ist **unklar** (nicht geprüft).
-- `docs/entscheidungen/`: 0001 Schichten, 0002 Agententeam, 0003 Testset und Label Studio, 0004 Detektor und Kacheln, 0005 Bibliothek, 0006 Tracking in Stufen.
+- `docs/entscheidungen/`: 0001 Schichten, 0002 Agententeam, 0003 Testset und Label Studio, 0004 Detektor und Kacheln, 0005 Bibliothek, 0006 Tracking in Stufen, 0007 ID-Wechsel-Kandidaten.
 
 ## 6. Noch nicht umgesetzt oder unklar
 
-- **Zählung (AK T4) ist nicht erledigt:** `docs/berichte/t4-zaehlung.md` ist eine leere Vorlage. Die ID-Wechsel pro Minute sind **nicht** von Hand gezählt. Nur die automatischen Hilfszahlen von run-003 stehen darin.
+- **ID-Wechsel (AK T4):** nur als automatischer Indikator (Kandidaten pro Spur-Minute), **nicht** von Hand gezählt; `docs/berichte/t4-zaehlung.md` bleibt eine leere Vorlage (Archiv). Auf run-003: 59 Kandidaten, 2,9 pro Spur-Minute. Von 8 per Auge angesehenen Kandidaten wirken 6 echt und 2 falsch (Kamerabewegung, Gedränge). Das ist keine Messung der echten Fehlerrate; die Standardschwellen (1,0 s, 1,0 Boxhöhen) sind geraten.
 - **Kamerabewegung (T4b):** nicht umgesetzt. Die Vorhersage nimmt keine Schwenk- oder Zoombewegung heraus. Umsetzung nur, wenn die Zählung deutlich schlecht ist.
 - **Spielfeldfilter (Woche 2):** Zuschauer, Ordner und Bank erzeugen heute Spuren und verfälschen die Zahlen.
 - **Kacheln (`--variant tiles`)** laufen im `track`-Befehl, sind aber nicht am echten Clip getestet. Laufzeit und Ergebnis sind **unklar**.

@@ -11,10 +11,14 @@ import numpy as np
 from matchstats.application.detector import Detector
 from matchstats.application.library import Library, LibraryError
 from matchstats.application.tiling import TiledDetector
-from matchstats.application.track_summary import summarize_tracks
+from matchstats.application.track_summary import (
+    summarize_id_switch_candidates,
+    summarize_tracks,
+)
 from matchstats.application.tracker import ByteTrackLikeTracker
 from matchstats.application.tracking_stages import detect_stage, track_stage
 from matchstats.domain.detection import Detection
+from matchstats.domain.id_switch import find_id_switch_candidates
 from matchstats.domain.settings import Settings
 from matchstats.infrastructure.config_loader import load_settings
 from matchstats.infrastructure.json_io import write_json_atomic
@@ -24,7 +28,9 @@ from matchstats.infrastructure.video_source import OpenCvFrameSource
 
 VARIANTS = ("whole", "tiles")
 SUMMARY_FILE = "summary.json"
-SUMMARY_SCHEMA_VERSION = 1
+SUMMARY_SCHEMA_VERSION = 2  # 2: Kennzahlen zu ID-Wechsel-Kandidaten ergänzt
+SWITCH_FILE = "id_switch_candidates.json"
+SWITCH_SCHEMA_VERSION = 1
 # Bibliotheken, deren Version im Ergebnis festgehalten wird (nur wenn installiert).
 _TRACKED_PACKAGES = ("numpy", "scipy", "opencv-python", "opencv-python-headless", "rfdetr", "torch")
 
@@ -120,14 +126,27 @@ def run_track_job(
     result = track_stage(doc, tracker, settings, store, versions)
     seconds["tracking"] = time.perf_counter() - start
 
+    candidates = find_id_switch_candidates(
+        result.tracks, doc.fps, doc.frame_size, doc.frame_count, settings
+    )
+    write_json_atomic(
+        run_dir / SWITCH_FILE,
+        {
+            "schema_version": SWITCH_SCHEMA_VERSION,
+            "note": "Kandidaten, keine bestätigten ID-Wechsel (siehe Spezifikation T4).",
+            "candidates": [asdict(c) for c in candidates],
+        },
+    )
+
     if render:
         start = time.perf_counter()
-        render_tracks(source, result, run_dir / "render")
+        render_tracks(source, result, run_dir / "render", candidates)
         seconds["render"] = time.perf_counter() - start
 
     summary = {
         "schema_version": SUMMARY_SCHEMA_VERSION,
         **summarize_tracks(result),
+        **summarize_id_switch_candidates(result, candidates),
         "stage_seconds": seconds,  # None = Stufe nicht gelaufen (z. B. Erkennung wiederverwendet)
         "detections_reused": reused,
     }
