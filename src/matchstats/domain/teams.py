@@ -135,13 +135,16 @@ class TeamsDoc:
     schema_version: int = TEAMS_SCHEMA_VERSION
 
 
-def select_sample_points(track: Track, count: int) -> tuple[TrackPoint, ...]:
-    """Bis zu `count` gesehene Punkte, gleichmäßig über die gesehenen Punkte verteilt.
+def select_sample_points(
+    track: Track, count: int, min_height: float = 0.0
+) -> tuple[TrackPoint, ...]:
+    """Bis zu `count` gesehene Punkte, gleichmäßig über die geeigneten Punkte verteilt.
 
-    Erster und letzter gesehener Punkt sind dabei (bei count 1 der mittlere). Deterministisch,
-    ohne Doppelte; gerundet wird ganzzahlig (halb auf), damit die Wahl nicht von Gleitkomma abhängt.
+    Geeignet = gesehen und Boxhöhe >= `min_height` (0 = kein Höhenfilter). Erster und letzter
+    geeigneter Punkt sind dabei (bei count 1 der mittlere). Deterministisch, ohne Doppelte;
+    gerundet wird ganzzahlig (halb auf), damit die Wahl nicht von Gleitkomma abhängt.
     """
-    seen = [p for p in track.points if p.visible]
+    seen = [p for p in track.points if p.visible and p.h >= min_height]
     n = len(seen)
     if n <= count:
         return tuple(seen)

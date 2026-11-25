@@ -51,3 +51,16 @@ def test_invalid_tracking_parameter_in_file_names_the_parameter(tmp_path):
 
     with pytest.raises(ValueError, match="track_min_hits"):
         load_settings(cfg)
+
+
+def test_team_vote_min_box_height_defaults_to_zero_filter_off():
+    assert Settings().team_vote_min_box_height == 0.0
+
+
+def test_negative_team_vote_min_box_height_is_rejected():
+    with pytest.raises(ValueError):
+        Settings(team_vote_min_box_height=-1.0)
+
+
+def test_team_vote_min_box_height_zero_is_valid():
+    assert Settings(team_vote_min_box_height=0.0).team_vote_min_box_height == 0.0

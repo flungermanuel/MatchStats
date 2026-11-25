@@ -65,8 +65,8 @@ class MemoryTeamsStore:
         self.doc = replace(doc, stage_params=json.loads(json.dumps(doc.stage_params)))
 
 
-def point(frame, w=20.0, visible=True, x=5.0):
-    return TrackPoint(frame, x, 4.0, w, 28.0, visible, 0.9 if visible else None)
+def point(frame, w=20.0, visible=True, x=5.0, h=60.0):
+    return TrackPoint(frame, x, 4.0, w, h, visible, 0.9 if visible else None)
 
 
 def track(track_id, w=20.0, frames=range(0, 100, 5), x=5.0):
@@ -213,6 +213,7 @@ def test_cache_hit_survives_json_roundtrip_of_tuple_settings():
     assert params["classifier"] == "color"
     assert params["team_samples_per_track"] == 8
     assert params["team_min_votes"] == 3
+    assert params["team_vote_min_box_height"] == 0.0
     assert params["team_grass_hue_range"] == [35, 85]
     assert all(key == "classifier" or key.startswith("team_") for key in params)
 
@@ -245,6 +246,7 @@ def test_changed_visibility_of_a_point_recomputes():
     [
         {"team_samples_per_track": 5},
         {"team_min_votes": 2},
+        {"team_vote_min_box_height": 30.0},
         {"team_upper_body_fraction": 0.4},
         {"team_cluster_count": 3},
         {"team_grass_hue_range": (30, 80)},
@@ -315,3 +317,113 @@ def test_document_carries_video_identity_versions_params_and_fingerprint():
     assert doc.stage_params == team_params(Settings(), "color")
     assert len(doc.tracks_fingerprint) == 64
     assert doc.note
+
+
+# --- T5c1: Mindesthöhe für Stimmen ------------------------------------------------------
+
+
+def sized_track(track_id, heights, w=20.0, step=5):
+    """Spur mit einem Punkt je Höhe; die Höhe steht in box.h des Klassifikators."""
+    return Track(track_id, tuple(point(i * step, w, h=h) for i, h in enumerate(heights)))
+
+
+FILTER_ON = replace(Settings(), team_vote_min_box_height=48.0)  # Filter ist im Standard aus (0)
+
+
+def test_default_team_vote_min_box_height_is_zero_filter_off_and_in_stage_params():
+    assert Settings().team_vote_min_box_height == 0.0
+    doc, *_ = run(make_result(track(1)))
+
+    assert doc.stage_params["team_vote_min_box_height"] == 0.0
+    assert json.loads(json.dumps(doc.stage_params)) == doc.stage_params
+
+
+def test_only_points_at_or_above_min_height_are_classified():
+    result = make_result(sized_track(1, [40.0, 47.9, 48.0, 60.0, 100.0]))
+
+    doc, _r, _s, classifier, _st = run(result, settings=FILTER_ON)
+
+    assert sorted(b.h for b in classifier.boxes) == [48.0, 60.0, 100.0]
+    assert doc.tracks[0].samples == 3
+
+
+def test_point_exactly_on_the_height_limit_counts():
+    settings = replace(Settings(), team_vote_min_box_height=50.0)
+
+    doc, _r, _s, classifier, _st = run(make_result(sized_track(1, [50.0])), settings=settings)
+
+    assert doc.tracks[0].samples == 1
+    assert len(classifier.boxes) == 1
+
+
+def test_samples_are_drawn_from_the_suitable_points_not_filtered_afterwards():
+    heights = [20.0] * 10 + [80.0] * 10  # nur die letzten 10 sind groß
+    settings = replace(FILTER_ON, team_samples_per_track=4)
+
+    doc, _r, _s, classifier, _st = run(make_result(sized_track(1, heights)), settings=settings)
+
+    assert len(classifier.boxes) == 4
+    assert all(b.h == 80.0 for b in classifier.boxes)
+    assert doc.tracks[0].samples == 4
+
+
+def test_track_with_only_small_boxes_is_listed_with_zero_samples_and_null_label():
+    small = sized_track(2, [10.0, 20.0, 47.0])
+
+    doc, _r, _s, classifier, _st = run(make_result(track(1), small), settings=FILTER_ON)
+
+    entry = doc.tracks[1]
+    assert entry.id == 2
+    assert (entry.samples, entry.label, entry.uncertainty) == (0, None, None)
+    assert entry.votes == {"team_a": 0, "team_b": 0, "goalkeeper": 0, "referee": 0, UNKNOWN: 0}
+    assert len(classifier.boxes) == 8  # nur die erste Spur
+
+
+def test_small_boxes_are_never_read_from_the_video_or_classified():
+    source, classifier = FakeSource(), FakeClassifier()
+
+    run(
+        make_result(sized_track(1, [10.0, 20.0, 30.0])),
+        source=source,
+        classifier=classifier,
+        settings=FILTER_ON,
+    )
+
+    assert source.requested_every == []
+    assert source.read_indices == []
+    assert classifier.boxes == []
+
+
+def test_fewer_known_votes_than_min_votes_after_filter_give_null_label():
+    result = make_result(sized_track(1, [20.0, 60.0, 60.0, 20.0, 20.0]))  # 2 große < 3
+
+    doc, *_ = run(result, settings=FILTER_ON)
+
+    assert doc.tracks[0].samples == 2
+    assert doc.tracks[0].label is None
+    assert doc.tracks[0].uncertainty == 0.0
+
+
+def test_changed_team_vote_min_box_height_invalidates_the_cache():
+    store = MemoryTeamsStore()
+    result = make_result(track(1))
+    run(result, store=store)
+
+    _doc, reused, source, classifier, _st = run(
+        result, settings=replace(Settings(), team_vote_min_box_height=30.0), store=store
+    )
+
+    assert reused is False
+    assert classifier.calls == 1
+    assert source.requested_every != []
+
+
+def test_min_height_zero_switches_the_filter_off():
+    settings = replace(Settings(), team_vote_min_box_height=0.0)
+
+    doc, _r, _s, classifier, _st = run(
+        make_result(sized_track(1, [1.0, 5.0, 10.0])), settings=settings
+    )
+
+    assert doc.tracks[0].samples == 3
+    assert len(classifier.boxes) == 3

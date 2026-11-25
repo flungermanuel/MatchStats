@@ -1,6 +1,6 @@
 # matchstats: Systemkarte
 
-Stand: 2026-11-25, nach T5b1 (Teams je Spur mit `teams.json`, noch nicht an `track` angebunden; davor T5a Teamzuordnung als Messung, T4b). Zwei Teile:
+Stand: 2026-11-25, nach T5c1 (Abstimmungs-Mindesthöhe, Standard aus; davor T5b1 Teams je Spur mit `teams.json`, noch nicht an `track` angebunden; T5a Teamzuordnung als Messung, T4b). Zwei Teile:
 - **Teil A: Zielbild** (abgeleitet aus `docs/workflow-spielanalyse.md`): wie das fertige System aufgebaut ist. Ein **Entwurf zur Bestätigung**, keine Spezifikation. Er ändert weder die Schichten aus CLAUDE.md noch die Woche-1-Spezifikation.
 - **Teil B: Stand heute**: was im Repo existiert. Was nicht als *(geplant)* markiert ist, existiert. **unklar** = im Repo nicht gefunden oder nicht entschieden.
 
@@ -183,7 +183,7 @@ Keine Stufe im Lauf-Ordner, kein Video, nicht an Spuren angebunden. Begriff **Or
 **Teams je Spur (T5b1, Stufe `team_stage`, noch nicht in `matchstats track` verdrahtet):**
 ```
 tracks.json (RunResult) + Video (ein Durchlauf, nur Bilder mit gemeinsamer Schrittweite per gcd)
-  -> je Spur bis zu team_samples_per_track gesehene Punkte (visible), gleichmäßig gewählt
+  -> je Spur: erst Filter (gesehen, Boxhöhe >= team_vote_min_box_height; 0 = aus), dann bis zu team_samples_per_track Punkte gleichmäßig aus den geeigneten gewählt
   -> Ausschnitte (Kopien) um die Boxen; ein classify-Aufruf je Clip (TeamClassifier gruppiert über alle Stichproben)
   -> Abstimmung je Spur: Mehrheit der bekannten Stimmen, mindestens team_min_votes, sonst label null
   -> run-NNN\teams.json
@@ -225,6 +225,7 @@ Parameter (`domain/settings.py`, Standardwerte, auch in `default.toml`):
 
 - Teamzuordnung (T5a, alle `team_*`, Startwerte geraten): `team_upper_body_fraction` 0,5, `team_min_box_height_px` 24, `team_min_box_width_px` 8, `team_grass_hue_range` [35, 85], `team_grass_min_saturation` 40, `team_cluster_count` 4, `team_outlier_max_share` 0,15, `team_min_cluster_distance` 0,2, `team_min_pixels` 30.
 - Teams je Spur (T5b1, Startwerte geraten): `team_samples_per_track` 8 (höchstens so viele gesehene Punkte je Spur), `team_min_votes` 3 (Mindestzahl bekannter Stimmen für eine Klasse).
+- Abstimmungs-Mindesthöhe (T5c1): `team_vote_min_box_height` 0,0 (Pixel; 0 = aus). Nur Boxen ab dieser Höhe stimmen mit; der Filter gilt vor der Stichprobe. Weniger als `team_min_votes` Stimmen danach: Klasse `null`. Teil des Cache-Schlüssels. Geprüfter Wert 48; Standard bleibt 0 (Entscheidung des Auftraggebers), siehe `docs/entscheidungen/0011-teamzuordnung-t5c1.md`.
 
 ## 5. Wo was liegt
 
@@ -245,7 +246,7 @@ data\ergebnis\t5a_h1\                  Teammessung Halbzeit 1: team_report.json,
 - `src/matchstats/`: Code nach Schichten (Abschnitt 1). Neu in T4: `domain/tracking.py`, `domain/id_switch.py`, `application/tracker.py`, `application/tracking_stages.py`, `application/track_summary.py`, `infrastructure/video_source.py`, `stage_files.py`, `json_io.py`, `track_render.py`, `tracking_job.py`. Neu in T4b: `domain/camera.py`, `application/camera_estimator.py`, `infrastructure/opencv_camera.py`; `camera_stage` in `tracking_stages.py`, `camera.json` in `stage_files.py`. Hilfsskript `tools/plot_camera_motion.py` (Diagramm, nicht Teil der Pipeline).
 - `tests/` (T4): `test_tracker_rules.py` (Zuordnungsregeln), `test_tracking_stages.py` (Stufen und Cache), `test_tracking_files.py` (Dateiformate), `test_track_settings.py`, `test_track_summary.py`, `test_id_switch_candidates.py`, `test_track_render.py`, `test_video_source.py`, `test_track_cli.py`, `test_cli_imports.py` (cv2/scipy erst beim `track`-Befehl geladen). T4b: `test_camera_domain.py`, `test_camera_estimator.py`, `test_camera_files.py`, `test_camera_settings.py`, `test_camera_stage.py`, `test_tracker_camera.py`. Dazu die älteren Tests und `test_architecture.py`.
 - `pyproject.toml`: Extra `track` = `scipy` (BSD) und `opencv-python` (Apache 2.0). Für den echten Lauf braucht `track` zusätzlich Extra `detect` (RF-DETR, siehe README Zeile 69). Ob eine frische Umgebung mit `.[track]` allein läuft, ist **unklar** (nicht geprüft).
-- `docs/entscheidungen/`: 0001 Schichten, 0002 Agententeam, 0003 Testset und Label Studio, 0004 Detektor und Kacheln, 0005 Bibliothek, 0006 Tracking in Stufen, 0007 ID-Wechsel-Kandidaten, 0008 Kamerabewegung (T4b), 0009 Teamzuordnung (T5a), 0010 Teams je Spur (T5b1).
+- `docs/entscheidungen/`: 0001 Schichten, 0002 Agententeam, 0003 Testset und Label Studio, 0004 Detektor und Kacheln, 0005 Bibliothek, 0006 Tracking in Stufen, 0007 ID-Wechsel-Kandidaten, 0008 Kamerabewegung (T4b), 0009 Teamzuordnung (T5a), 0010 Teams je Spur (T5b1), 0011 Mindesthöhe der Abstimmung (T5c1).
 - Neu in T5a: `domain/teams.py`, `application/team_classifier.py`, `application/team_evaluation.py`, `infrastructure/color_team_classifier.py`, `infrastructure/team_report.py`; erweitert `evaluation_job.py`, `image_io.py` (`save_team_overlay`), `settings.py`, `config_loader.py`, `default.toml`, `cli.py`. Tests: `test_teams_domain.py`, `test_color_team_classifier.py`, `test_team_evaluation.py`, `test_team_report.py`, `test_team_cli.py`.
 - Neu in T5b1: `application/team_stage.py`; erweitert `domain/teams.py`, `infrastructure/stage_files.py` (`load_teams`/`save_teams`), `domain/settings.py`, `default.toml`. Tests: `test_teams_vote.py` (Abstimmung, Stichprobenwahl, Fingerabdruck), `test_team_crop.py` (Ausschnitt, gleiche Vorhersage wie Ganzbild), `test_team_stage.py` (Stufe und Cache), `test_stage_files_teams.py` (Dateiformat).
 
@@ -270,4 +271,5 @@ data\ergebnis\t5a_h1\                  Teammessung Halbzeit 1: team_report.json,
 - **Messung:** eine Perspektive, ein Spiel (Testset), Score-Schwelle für die Messung fest 0,3.
 - **Teamzuordnung (T5a): nur Messung auf beschrifteten Boxen, nicht auf Spuren.** Basislinie Halbzeit 1 (clip1 bis clip3): gesamt 66,1 %, nah 73,1 %, fern 59,2 %; team_a 84,4 %, team_b 66,9 %, Torwart 10,5 %, Schiedsrichter 0 %; 75 Boxen unbekannt. Torwart und Schiedsrichter sind praktisch nicht getrennt (nur über Gruppengröße unterschieden). In allen Clips gibt es eine dritte große Farbgruppe (87 bis 133 Boxen), Ursache **offen**. Parameter geraten. Die Zuordnung je Clip nutzt die Wahrheit (Orakel), die Zahlen sind optimistisch. Die Verbesserung ist als Punkt für T5b oder später vorgesehen. Siehe `docs/entscheidungen/0009-teamzuordnung-t5a.md`.
 - **Teams je Spur (T5b1): Stufe vorhanden, aber nicht an `matchstats track` angebunden** (kein CLI-Befehl, keine Zeile in `summary.json`, kein Render in Teamfarbe; kommt mit T5b2). Handlauf clip1 (run-005): 73 Spuren, team_a 24, team_b 49, Torwart 0, Schiedsrichter 0, `null` 0; **Anteil Spuren mit wechselnder Klasse 45,2 %** (573 Stichproben, 14,6 s, Cache-Treffer 0,38 s). Das ist hoch (Schwelle 30 % geraten); ob die Schwelle oder das Verfahren der Maßstab ist, ist **offen** und vor T5b2 zu klären. Gruppierung je Spur-Stichproben statt je Bild wie in T5a, daher ist das Gewicht von `team_outlier_max_share` verändert (Messrisiko). Siehe `docs/entscheidungen/0010-teams-je-spur-t5b1.md`.
+- **Abstimmungs-Mindesthöhe (T5c1): Filter vorhanden, Standard aus.** Mit 48 px auf clip1: Wechselrate 45,2 % -> 20,3 %, 4 Spuren `null`; Testset H1 71,6 % bei 61,4 % Abdeckung (Basis 66,1 %). **Kein Nachweis besserer Zuordnung:** auf clip1 fallen die Mannschaften zusammen (Spieler beider Trikotfarben bei team_a, team_b meist Nicht-Spieler); nur 10 von 73 Spuren angesehen. Ursache (Gruppierung) offen, Thema von T5c2. Siehe `docs/entscheidungen/0011-teamzuordnung-t5c1.md`.
 - **Ausgabe (T6), Bericht (T7):** geplant, nicht vorhanden.

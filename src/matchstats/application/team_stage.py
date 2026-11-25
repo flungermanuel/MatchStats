@@ -99,7 +99,10 @@ def team_stage(
     ):
         return existing, True
 
-    chosen = [select_sample_points(t, settings.team_samples_per_track) for t in result.tracks]
+    chosen = [
+        select_sample_points(t, settings.team_samples_per_track, settings.team_vote_min_box_height)
+        for t in result.tracks
+    ]
     predictions = _classify_samples(chosen, source, classifier)
     doc = TeamsDoc(
         source=source.name,

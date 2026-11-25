@@ -51,6 +51,8 @@ class Settings:
     # Teams je Spur (T5b1): Stichproben je Spur und Mindestzahl bekannter Stimmen.
     team_samples_per_track: int = 8
     team_min_votes: int = 3
+    # T5c1: Nur Boxen ab dieser Höhe (px) stimmen mit; 0 = Filter aus.
+    team_vote_min_box_height: float = 0.0
 
     def __post_init__(self) -> None:
         if self.detect_every < 1:
@@ -109,3 +111,5 @@ class Settings:
             raise ValueError("team_samples_per_track muss mindestens 1 sein")
         if self.team_min_votes < 1:
             raise ValueError("team_min_votes muss mindestens 1 sein")
+        if self.team_vote_min_box_height < 0:
+            raise ValueError("team_vote_min_box_height darf nicht negativ sein")

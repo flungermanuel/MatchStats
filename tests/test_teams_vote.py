@@ -302,3 +302,34 @@ def test_null_track_count_counts_tracks_without_label():
 
     assert null_track_count(teams) == 2
     assert null_track_count([]) == 0
+
+
+# --- select_sample_points mit Mindesthöhe (T5c1) ---------------------------------------
+
+
+def test_sample_points_with_min_height_only_use_points_at_or_above_it():
+    t = Track(1, tuple(point(i, h=h) for i, h in enumerate([10.0, 47.9, 48.0, 90.0])))
+
+    chosen = select_sample_points(t, 8, min_height=48.0)
+
+    assert [p.frame for p in chosen] == [2, 3]  # 48.0 liegt genau auf der Grenze
+
+
+def test_sample_points_are_drawn_from_the_tall_points_only():
+    t = Track(1, tuple(point(i, h=10.0 if i < 10 else 80.0) for i in range(20)))
+
+    chosen = select_sample_points(t, 4, min_height=48.0)
+
+    assert [p.frame for p in chosen] == [10, 13, 16, 19]
+
+
+def test_sample_points_without_min_height_argument_ignore_height():
+    t = Track(1, tuple(point(i, h=1.0) for i in range(3)))
+
+    assert [p.frame for p in select_sample_points(t, 8)] == [0, 1, 2]
+
+
+def test_sample_points_all_below_min_height_give_empty_tuple():
+    t = Track(1, tuple(point(i, h=5.0) for i in range(5)))
+
+    assert select_sample_points(t, 3, min_height=48.0) == ()

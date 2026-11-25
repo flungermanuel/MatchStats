@@ -66,6 +66,10 @@ team_min_pixels = 30
 # Spur bekommt nur eine Klasse, wenn mindestens so viele bekannte Stimmen vorliegen (sonst null).
 team_samples_per_track = 8
 team_min_votes = 3
+# T5c1: Nur Boxen mit mindestens dieser Höhe (Pixel) stimmen mit (kleine Boxen haben zu wenige
+# Trikotpixel); 0 = Filter aus (Standard). Messung auf clip1 mit 48: Wechselrate 45,2 % -> 20,3 %,
+# aber beide Mannschaften fallen zusammen (siehe Entscheidung 0011), daher vorerst aus.
+team_vote_min_box_height = 0.0
 
 # Aufnahme-Profil "camera_motion" eines Clips -> Parameter. Nur Daten, keine Logik:
 # neue Profilwerte kommen durch einen weiteren Eintrag dazu. "unbekannt" gilt ohne Profilwert.
