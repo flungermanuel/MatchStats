@@ -1,4 +1,7 @@
-"""Kommandozeile: run, sample-frames, evaluate, match, clip, track. Verdrahtet die Schichten."""
+"""Kommandozeile: run, sample-frames, evaluate, evaluate-teams, match, clip, track.
+
+Verdrahtet die Schichten.
+"""
 
 import argparse
 import sys
@@ -13,6 +16,7 @@ from matchstats.infrastructure.evaluation_job import (
     DETECTOR_NAMES,
     run_evaluation,
     run_library_evaluation,
+    run_team_evaluation,
 )
 from matchstats.infrastructure.file_library import FileLibrary
 from matchstats.infrastructure.frame_sampler import FrameSamplingError, sample_frames
@@ -49,6 +53,16 @@ def build_parser() -> argparse.ArgumentParser:
     evaluate.add_argument("--game", default=None, help="Spiel-ID: alle Clips einer Halbzeit messen")
     evaluate.add_argument("--half", type=int, choices=(1, 2), help="Halbzeit (mit --game)")
     _add_library_option(evaluate)
+
+    teams = sub.add_parser(
+        "evaluate-teams", help="Teamzuordnung auf den Testsets einer Halbzeit messen"
+    )
+    teams.add_argument("--game", required=True, help="Spiel-ID")
+    teams.add_argument("--half", type=int, choices=(1, 2), required=True, help="Halbzeit")
+    teams.add_argument("--out", type=Path, required=True, help="Ausgabeordner für den Bericht")
+    teams.add_argument("--overlays", type=int, default=6, help="Beispielbilder")
+    teams.add_argument("--config", type=Path, default=None, help="Eigene Konfiguration (TOML)")
+    _add_library_option(teams)
 
     match = sub.add_parser("match", help="Spiele der Bibliothek verwalten")
     match_sub = match.add_subparsers(dest="action", required=True)
@@ -159,6 +173,19 @@ def _evaluate_game_command(args: argparse.Namespace) -> int:
     return 0
 
 
+def _evaluate_teams_command(args: argparse.Namespace) -> int:
+    try:
+        run_team_evaluation(
+            FileLibrary(args.library), args.game, args.half, args.out, load_settings(args.config),
+            args.overlays,
+        )  # fmt: skip
+    except (LibraryError, TestsetFormatError, ValueError, OSError) as err:
+        print(f"Fehler: {err}", file=sys.stderr)
+        return 2
+    print(f"Fertig: {args.out / 'team_report.md'}")
+    return 0
+
+
 def _match_command(args: argparse.Namespace) -> int:
     try:
         FileLibrary(args.library).add_match(
@@ -232,6 +259,8 @@ def main(argv: list[str] | None = None) -> int:
         return _sample_frames_command(args)
     if args.command == "evaluate":
         return _evaluate_command(args)
+    if args.command == "evaluate-teams":
+        return _evaluate_teams_command(args)
     if args.command == "match":
         return _match_command(args)
     if args.command == "clip":

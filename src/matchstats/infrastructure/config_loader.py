@@ -44,4 +44,7 @@ def load_settings(
         if unknown:
             raise ValueError(f"Unbekannter Parameter {', '.join(unknown)} ({source})")
         values.update(layer)
+    # TOML und JSON kennen nur Listen; Settings erwartet für den Farbton-Bereich ein Tupel.
+    if "team_grass_hue_range" in values:
+        values["team_grass_hue_range"] = tuple(values["team_grass_hue_range"])
     return Settings(**values)

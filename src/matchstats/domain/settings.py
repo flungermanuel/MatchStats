@@ -35,6 +35,19 @@ class Settings:
     camera_downscale: float = 0.5
     camera_min_quality: float = 0.5
     camera_max_features: int = 300
+    # Teamzuordnung (T5a): Anteil der Boxhöhe von oben (Oberkörper), Mindestgröße einer Box,
+    # Rasen-Farbmaske (Farbton 0 bis 179 wie OpenCV, Mindest-Sättigung 0 bis 255), Zahl der
+    # Farbgruppen, Höchstanteil einer Ausreißergruppe (Torwart/Schiedsrichter), Mindestzahl
+    # Nicht-Rasen-Pixel einer Box.
+    team_upper_body_fraction: float = 0.5
+    team_min_box_height_px: int = 24
+    team_min_box_width_px: int = 8
+    team_grass_hue_range: tuple[int, int] = (35, 85)
+    team_grass_min_saturation: int = 40
+    team_cluster_count: int = 4
+    team_outlier_max_share: float = 0.15
+    team_min_cluster_distance: float = 0.2
+    team_min_pixels: int = 30
 
     def __post_init__(self) -> None:
         if self.detect_every < 1:
@@ -68,3 +81,24 @@ class Settings:
             raise ValueError("camera_min_quality muss zwischen 0 und 1 liegen")
         if self.camera_max_features < 1:
             raise ValueError("camera_max_features muss mindestens 1 sein")
+        if not 0 < self.team_upper_body_fraction <= 1:
+            raise ValueError("team_upper_body_fraction muss in (0, 1] liegen")
+        if self.team_min_box_height_px < 1 or self.team_min_box_width_px < 1:
+            raise ValueError(
+                "team_min_box_height_px und team_min_box_width_px müssen mindestens 1 sein"
+            )
+        if len(self.team_grass_hue_range) != 2:
+            raise ValueError("team_grass_hue_range braucht genau zwei Werte (von, bis)")
+        low, high = self.team_grass_hue_range
+        if not 0 <= low < high <= 179:
+            raise ValueError("team_grass_hue_range muss 0 <= von < bis <= 179 erfüllen")
+        if not 0 <= self.team_grass_min_saturation <= 255:
+            raise ValueError("team_grass_min_saturation muss zwischen 0 und 255 liegen")
+        if self.team_cluster_count < 2:
+            raise ValueError("team_cluster_count muss mindestens 2 sein")
+        if not 0 < self.team_outlier_max_share < 0.5:
+            raise ValueError("team_outlier_max_share muss in (0, 0.5) liegen")
+        if self.team_min_cluster_distance <= 0:
+            raise ValueError("team_min_cluster_distance muss größer als 0 sein")
+        if self.team_min_pixels < 1:
+            raise ValueError("team_min_pixels muss mindestens 1 sein")

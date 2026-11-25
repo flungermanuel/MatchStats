@@ -43,6 +43,26 @@ camera_min_quality = 0.5
 # Höchste Zahl verfolgter Merkmalspunkte je Bild.
 camera_max_features = 300
 
+# Teamzuordnung (T5a). Startwerte sind geraten und noch nicht an echten Videos gemessen.
+# Anteil der Boxhöhe von oben, der als Oberkörper (Trikot) ausgewertet wird.
+team_upper_body_fraction = 0.5
+# Kleinere Boxen werden nicht zugeordnet (Ergebnis "unbekannt").
+team_min_box_height_px = 24
+team_min_box_width_px = 8
+# Rasen-Farbmaske: Farbton von/bis (0 bis 179 wie OpenCV) und Mindest-Sättigung (0 bis 255).
+team_grass_hue_range = [35, 85]
+team_grass_min_saturation = 40
+# Zahl der Farbgruppen (Team A, Team B, Schiedsrichter, Torwart).
+team_cluster_count = 4
+# Weitere Gruppen (jenseits der zwei größten) mit größerem Anteil der Boxen werden dem Team mit dem
+# nächsten Gruppenmittelpunkt zugeschlagen; nur Gruppen bis zu diesem Anteil sind Ausreißer
+# (Schiedsrichter/Torwart).
+team_outlier_max_share = 0.15
+# Mindest-Farbabstand (RGB, 0 bis 1 je Kanal) für eine neue Farbgruppe; geraten, an echten Daten messen.
+team_min_cluster_distance = 0.2
+# Mindestzahl Nicht-Rasen-Pixel im Oberkörper, sonst "unbekannt".
+team_min_pixels = 30
+
 # Aufnahme-Profil "camera_motion" eines Clips -> Parameter. Nur Daten, keine Logik:
 # neue Profilwerte kommen durch einen weiteren Eintrag dazu. "unbekannt" gilt ohne Profilwert.
 [camera_motion_presets.fest]

@@ -7,12 +7,19 @@ from pathlib import Path
 from matchstats.application.detector import Detector
 from matchstats.application.evaluation import EvaluationRun, evaluate_detector
 from matchstats.application.library import Library, LibraryError
+from matchstats.application.team_classifier import TeamClassifier
+from matchstats.application.team_evaluation import (
+    TeamEvaluationRun,
+    evaluate_teams,
+    select_overlay_keys,
+)
 from matchstats.application.tiling import TiledDetector
 from matchstats.domain.metrics import median_height
 from matchstats.domain.settings import Settings
 from matchstats.domain.testset import LabeledImage
 from matchstats.infrastructure.evaluation_report import write_report
-from matchstats.infrastructure.image_io import load_image, save_overlay
+from matchstats.infrastructure.image_io import load_image, save_overlay, save_team_overlay
+from matchstats.infrastructure.team_report import write_team_report
 from matchstats.infrastructure.testset_loader import load_testset
 
 DETECTOR_NAMES = ("rfdetr", "yolo")
@@ -56,6 +63,16 @@ def run_library_evaluation(
     overlay_count: int = 6,
 ) -> list[EvaluationRun]:
     """Misst alle Clips einer Halbzeit in EINEM Bericht (eine nah/fern-Grenze über alle Bilder)."""
+    images, image_paths = _collect_library_images(library, match_id, half)
+    return _measure(
+        images, image_paths.__getitem__, out_dir, settings, detector_names, overlay_count
+    )
+
+
+def _collect_library_images(
+    library: Library, match_id: str, half: int
+) -> tuple[list[LabeledImage], dict[str, Path]]:
+    """Sammelt die beschrifteten Bilder aller Clips einer Halbzeit (Schlüssel "<clip>/<datei>")."""
     images: list[LabeledImage] = []
     image_paths: dict[str, Path] = {}
     for clip in library.list_clips(match_id, half=half):
@@ -70,9 +87,38 @@ def run_library_evaluation(
             images.append(replace(image, file_name=key))
     if not images:
         raise LibraryError(f"Spiel {match_id}: keine Clips mit Testset in Halbzeit {half}")
-    return _measure(
-        images, image_paths.__getitem__, out_dir, settings, detector_names, overlay_count
+    return images, image_paths
+
+
+def _build_team_classifier(settings: Settings) -> TeamClassifier:
+    from matchstats.infrastructure.color_team_classifier import ColorTeamClassifier
+
+    return ColorTeamClassifier(settings)
+
+
+def run_team_evaluation(
+    library: Library,
+    match_id: str,
+    half: int,
+    out_dir: Path,
+    settings: Settings,
+    overlay_count: int = 6,
+) -> TeamEvaluationRun:
+    """Misst die Teamzuordnung aller Clips einer Halbzeit; schreibt Bericht und Overlay-Bilder."""
+    images, image_paths = _collect_library_images(library, match_id, half)
+    run = evaluate_teams(
+        _build_team_classifier(settings), images, lambda key: load_image(image_paths[key])
     )
+    by_key = {i.file_name: i for i in images}
+    for key in select_overlay_keys(images, run, overlay_count):
+        save_team_overlay(
+            load_image(image_paths[key]),
+            list(by_key[key].boxes),
+            run.predictions[key],
+            out_dir / "overlays" / key,
+        )
+    write_team_report(run, out_dir, settings)
+    return run
 
 
 def _measure(
