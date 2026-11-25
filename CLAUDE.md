@@ -49,7 +49,8 @@ Ich (Hauptsitzung) bin Lead: Ich bespreche mit dem Entwickler, zerlege Aufgaben,
 - `code-reviewer` (nur lesen): unabhängiges Review vor jedem Commit.
 - `product-owner` (nur `docs/ideen.md`): schlägt Features vor, ändert nie die Spezifikation.
 - `doc-keeper` (nur `docs/`): Systemkarte und Erklärung.
-Skills: `/aufgabe-start <Aufgabe>` (Schritt 1 und 2 des Ablaufs) und `/aufgabe-abschluss <Aufgabe>` (Review, Tests, Doku, Commit-Vorschlag). Ein Hook (`.claude/hooks/pre_commit_check.py`) blockiert `git commit`, solange `pytest` oder `ruff check .` rot sind.
+- `planner` (nur `docs/backlog.md`): plant die nächsten Aufgaben, trennt autonome Entscheidungen von Feature-Rückfragen an mich.
+Skills: `/aufgabe-start <Aufgabe>` (Schritt 1 und 2 des Ablaufs), `/aufgabe-abschluss <Aufgabe>` (Review, Tests, Doku, Commit-Vorschlag) und `/entwickeln [Anzahl|Kennung]` (automatische Schleife: planner -> architect -> test-engineer -> backend-engineer -> code-reviewer -> doc-keeper -> Commit -> planner; fragt mich nur bei Feature-Rückfragen und Stopp-Gründen, committet innerhalb der Schleife ohne Einzelfreigabe, kein Push). Ein Hook (`.claude/hooks/pre_commit_check.py`) blockiert `git commit`, solange `pytest` oder `ruff check .` rot sind.
 Regeln: Nur so viele Agenten aufrufen, wie die Aufgabe braucht (Kontingent). Agenten ändern keine Spezifikation und arbeiten nicht über die aktuelle Aufgabe hinaus. Der Lead meldet offen, was Agenten nicht geprüft haben.
 
 ## Modellwahl (Kontingent schonen, Claude Pro)
