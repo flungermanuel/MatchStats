@@ -1,6 +1,6 @@
 # matchstats: Systemkarte
 
-Stand: 2026-11-25, nach T5a (Teamzuordnung per Trikotfarbe, nur als Messung auf beschrifteten Boxen; davor T4b). Zwei Teile:
+Stand: 2026-11-25, nach T5b1 (Teams je Spur mit `teams.json`, noch nicht an `track` angebunden; davor T5a Teamzuordnung als Messung, T4b). Zwei Teile:
 - **Teil A: Zielbild** (abgeleitet aus `docs/workflow-spielanalyse.md`): wie das fertige System aufgebaut ist. Ein **Entwurf zur Bestätigung**, keine Spezifikation. Er ändert weder die Schichten aus CLAUDE.md noch die Woche-1-Spezifikation.
 - **Teil B: Stand heute**: was im Repo existiert. Was nicht als *(geplant)* markiert ist, existiert. **unklar** = im Repo nicht gefunden oder nicht entschieden.
 
@@ -31,7 +31,7 @@ Jede Stufe liest nur Dateien der Vorstufen und schreibt genau ihre eigenen. Bild
 | 1 | Aufnahmeprüfung: Abschnitte, Kamerabewegung | Video | `segments.json`, `camera.json` | `SegmentClassifier`, `CameraMotionEstimator` | Kamerabewegung **vorhanden** (T4b, `camera.json`); Abschnitte **geplant** |
 | 2 | Erkennung | Video (jedes N-te Bild) | `detections.json` | `Detector` (RF-DETR, YOLO) | **vorhanden** |
 | 3 | Spurbildung | `detections.json` (+ `camera.json`) | `tracks.json` | `Tracker` | **vorhanden** (T4) |
-| 4 | Teamzuordnung und Rollen | Video-Ausschnitte der Spuren, `tracks.json` | `teams.json` (Team, Torhüter, Schiedsrichter, Unsicherheit) | `TeamClassifier` | **Port und Farbverfahren vorhanden, nur als Messung** (T5a, `evaluate-teams`); Stufe auf Spuren mit `teams.json` geplant (T5b) |
+| 4 | Teamzuordnung und Rollen | Video-Ausschnitte der Spuren, `tracks.json` | `teams.json` (Team, Torhüter, Schiedsrichter, Unsicherheit) | `TeamClassifier` | **Stufe vorhanden** (T5b1: `team_stage`, `teams.json`, Cache), **noch nicht an `track` angebunden** (T5b2); Farbverfahren als Messung seit T5a (`evaluate-teams`) |
 | 5 | Kalibrierung und Projektion | Schlüsselbilder (manuell), `tracks.json` | `calibration.json`, `pitch_tracks.json` | `Calibrator` | geplant (Woche 2) |
 | 6 | Qualitätsprüfung | alle Vorstufen | `quality.json` | `QualityCheck` (Regeln) | geplant |
 | 7 | Kennzahlen | `pitch_tracks.json`, `teams.json`, `corrections.json` | `metrics.json` | `Metric` (eine Klasse je Kennzahl) | geplant |
@@ -90,8 +90,8 @@ Abhängigkeiten zeigen nur nach innen: `cli` -> `infrastructure` -> `application
 
 | Schicht | Ordner in `src/matchstats/` | Inhalt heute | darf importieren |
 |---|---|---|---|
-| domain | `domain/` | Reine Datentypen und Regeln: `Settings`, `RunResult`, `Detection` (IoU, NMS), Tracking-Typen (`tracking.py`: `FrameDetections`, `TrackPoint`, `Track`, `DetectionsDoc`), Kamera-Typen (`camera.py`: `CameraMotion`, `CameraPath`, `NO_CAMERA`, `CameraDoc`), Team-Typen (`teams.py`: `TeamPrediction`, Verwechslungstabelle, Trefferquote, beste A/B-Zuordnung), Bibliotheks-, Testset-, Mess- und Kachel-Typen. Keine Dateizugriffe | nur domain |
-| application | `application/` | Ablauf und Ports: `run_pipeline` (leer), Port `Detector`, `TiledDetector`, `evaluate_detector`, Port `Library`, Port `Tracker` mit `ByteTrackLikeTracker` (`tracker.py`), Stufen `detect_stage`, `camera_stage` und `track_stage` mit den Ports `FrameSource`, `CameraMotionEstimator` und `StageStore` (`tracking_stages.py`), `summarize_tracks`, Port `TeamClassifier` (`team_classifier.py`), Teammessung `evaluate_teams` (`team_evaluation.py`) | domain, application |
+| domain | `domain/` | Reine Datentypen und Regeln: `Settings`, `RunResult`, `Detection` (IoU, NMS), Tracking-Typen (`tracking.py`: `FrameDetections`, `TrackPoint`, `Track`, `DetectionsDoc`), Kamera-Typen (`camera.py`: `CameraMotion`, `CameraPath`, `NO_CAMERA`, `CameraDoc`), Team-Typen (`teams.py`: `TeamPrediction`, Verwechslungstabelle, Trefferquote, beste A/B-Zuordnung; T5b1: `TrackTeam`, `TeamsDoc`, `vote_track`, `select_sample_points`, `tracks_fingerprint`, `class_change_share`), Bibliotheks-, Testset-, Mess- und Kachel-Typen. Keine Dateizugriffe | nur domain |
+| application | `application/` | Ablauf und Ports: `run_pipeline` (leer), Port `Detector`, `TiledDetector`, `evaluate_detector`, Port `Library`, Port `Tracker` mit `ByteTrackLikeTracker` (`tracker.py`), Stufen `detect_stage`, `camera_stage` und `track_stage` mit den Ports `FrameSource`, `CameraMotionEstimator` und `StageStore` (`tracking_stages.py`), `summarize_tracks`, Port `TeamClassifier` (`team_classifier.py`), Teammessung `evaluate_teams` (`team_evaluation.py`), Stufe `team_stage` mit eigenem Port `TeamsStore` (`team_stage.py`) | domain, application |
 | infrastructure | `infrastructure/` | Außenwelt: Parameter laden, Video bildweise lesen (OpenCV), Detektoren (RF-DETR, YOLO), Dateien schreiben und lesen, Darstellung (Video, Kontaktbögen), Bibliothek als Dateien, Kamera-Schätzung (`opencv_camera.py`), Verdrahtung des Track-Laufs (`tracking_job.py`), Farbverfahren der Teamzuordnung (`color_team_classifier.py`, reines NumPy), Teambericht (`team_report.py`), Verdrahtung der Teammessung (`evaluation_job.py`: `run_team_evaluation`) | domain, application |
 | cli | `cli.py`, `__main__.py` | Argumente lesen, Schichten verdrahten, Ergebnis melden. Keine Logik | alles |
 
@@ -115,6 +115,7 @@ Begriffe:
 | CLI `match add`, `clip import`, `clip list` | `cli.py`, `file_library.py`, `clip_table.py` | Spiel-ID, Video, Profil | `match.json`, Clip-Ordner mit Kopie des Videos und `clip.json` (fps, Auflösung, Länge per ffprobe) |
 | CLI `evaluate` | `cli.py`, `evaluation_job.py` | `--game --half` (Bibliothek) oder `--testset --images` (alt) | `report.json`, `report.md`, `overlays\` |
 | CLI `evaluate-teams` (neu in T5a) | `cli.py`, `evaluation_job.py` (`run_team_evaluation`), `application/team_evaluation.py` | `--game --half --out` (Pflicht), `--overlays` (Standard 6), `--config`, `--library` | `team_report.json`, `team_report.md`, `overlays\` (Fehler zuerst, rot) |
+| Stufe Teams je Spur (T5b1) | `application/team_stage.py` (`team_stage`, Port `TeamsStore`), Typen und Abstimmung in `domain/teams.py`, Dateien in `infrastructure/stage_files.py` | `tracks.json` (als `RunResult`), Video (`FrameSource`), `TeamClassifier` | `teams.json`. **Noch kein CLI-Befehl und keine Anbindung an `track`** (T5b2) |
 | Teamzuordnung (T5a) | Port `application/team_classifier.py` (`TeamClassifier`), Umsetzung `infrastructure/color_team_classifier.py`, Typen `domain/teams.py` | Mengen pro Clip: Bilder und Boxen (Box i in Bild i) | je Box Klasse (`team_a`, `team_b`, `goalkeeper`, `referee`) und Sicherheit, oder `None` (unbekannt) |
 | CLI `sample-frames` | `cli.py`, `frame_sampler.py` | Videos, `--out`, `--count` | PNGs + `manifest.json`. **Nicht** an die Bibliothek angebunden (siehe 6) |
 | Stufe Erkennung | `application/tracking_stages.py` (`detect_stage`) | `FrameSource` (jedes N-te Bild), `Detector`, `StageStore` | `detections.json` |
@@ -124,7 +125,7 @@ Begriffe:
 | Kennzahlen | `application/track_summary.py` | Spuren, Kandidaten | Teil von `summary.json` |
 | ID-Wechsel-Kandidaten | `domain/id_switch.py` (`find_id_switch_candidates`) | Spuren, fps, Bildgröße, Parameter `switch_*` | `id_switch_candidates.json`, Vergleichsbilder `render\switches\switch_NNN.png` |
 | Videoquelle | `infrastructure/video_source.py` (`OpenCvFrameSource`) | Video | Bild für Bild (ein Bild im Speicher), prüft, ob das Video vollständig lesbar ist |
-| Dateien der Stufen | `infrastructure/stage_files.py` (`FileStageStore`) | Lauf-Ordner | `detections.json` lesen/schreiben; `tracks.json` über `result_store.py` |
+| Dateien der Stufen | `infrastructure/stage_files.py` (`FileStageStore`) | Lauf-Ordner | `detections.json`, `camera.json`, `teams.json` (T5b1) lesen/schreiben; `tracks.json` über `result_store.py` |
 | JSON ohne halbe Dateien | `infrastructure/json_io.py` | Daten | Erst `.tmp`, dann umbenannt |
 | Darstellung | `infrastructure/track_render.py` | Video, Spuren | `render\tracks.mp4` (halbe Geschwindigkeit, Box + ID; gesehene Boxen dick, überbrückte dünn), `render\sheet_*.png` (alle 2 s). Deterministisch aus den Spuren |
 | Verdrahtung Track-Lauf | `infrastructure/tracking_job.py` (`run_track_job`) | Bibliothek, Clip, Variante, Konfiguration | Lauf-Ordner, `summary.json`. Baut den Detektor erst, wenn wirklich erkannt werden muss |
@@ -177,7 +178,17 @@ testset\coco.json + Bilder (je Clip der Halbzeit, beschriftete Boxen mit Klasse)
   -> je Clip bessere A/B- und Torwart/Schiedsrichter-Zuordnung anhand der Wahrheit (Orakel, optimistisch)
   -> --out\team_report.json, team_report.md, overlays\
 ```
-Keine Stufe im Lauf-Ordner, kein Video, nicht an Spuren angebunden (kommt in T5b). Begriff **Orakel**: Die Zuordnung "welche Farbgruppe ist Team A" wird mit der Wahrheit festgelegt; echte Läufe haben diese Hilfe nicht.
+Keine Stufe im Lauf-Ordner, kein Video, nicht an Spuren angebunden. Begriff **Orakel**: Die Zuordnung "welche Farbgruppe ist Team A" wird mit der Wahrheit festgelegt; echte Läufe haben diese Hilfe nicht.
+
+**Teams je Spur (T5b1, Stufe `team_stage`, noch nicht in `matchstats track` verdrahtet):**
+```
+tracks.json (RunResult) + Video (ein Durchlauf, nur Bilder mit gemeinsamer Schrittweite per gcd)
+  -> je Spur bis zu team_samples_per_track gesehene Punkte (visible), gleichmäßig gewählt
+  -> Ausschnitte (Kopien) um die Boxen; ein classify-Aufruf je Clip (TeamClassifier gruppiert über alle Stichproben)
+  -> Abstimmung je Spur: Mehrheit der bekannten Stimmen, mindestens team_min_votes, sonst label null
+  -> run-NNN\teams.json
+```
+Cache: `teams.json` wird wiederverwendet, wenn `stage_params` (alle `team_*` plus Klassifikatorname), Videoidentität (Dateiname, Bildanzahl) und der Spur-Fingerabdruck (sha256 über id, frame, x, y, w, h, visible) gleich sind; dann wird das Video nicht gelesen. Kein Orakel: "team_a" ist die größere Farbgruppe, nur die Trennung A gegen B zählt.
 
 **Testset-Ast (T2) und Mess-Ast (T3, alt):** `sample-frames` -> Label Studio -> `coco.json` -> `evaluate --testset ... --images ...`.
 
@@ -186,7 +197,7 @@ Keine Stufe im Lauf-Ordner, kein Video, nicht an Spuren angebunden (kommt in T5b
 **Geplant:**
 ```
 Quelle (.MTS 1080i25) --T0, manuell mit ffmpeg/yadif--> Clips, progressiv 1080p25
-  -> T5b Teamzuordnung auf Spuren: Klasse je Spur, teams.json  *(geplant; T5a = Messung vorhanden)*
+  -> T5b2 Teams im Lauf: `track` ruft `team_stage`, summary.json v4, Render in Teamfarbe  *(geplant; T5b1 = Stufe vorhanden)*
   -> T6 Ausgabe: annotiertes Video + Spurdatei (Sichtbarkeit, Unsicherheit)  *(geplant; erweitert render/, baut nicht neu)*
   -> T7 Bericht: Kennzahlen, Laufzeiten, Beispielbilder        *(geplant)*
 ```
@@ -204,6 +215,7 @@ Gemeinsam: UTF-8, Einrückung 2, `schema_version` als erstes Feld. Fehlende Wert
 - `id_switch_candidates.json` (v1): Liste `candidates` mit `old_id`, `new_id`, `end_frame`, `start_frame`, `distance_in_heights`. Nur Kandidaten, keine bestätigten Wechsel.
 - `summary.json` (v3, `infrastructure/tracking_job.py`; neu in v3: `camera_compensation` an/aus und `camera_null_share`, der Anteil der Bilder ohne Kameraschätzung; `null` = ohne Ausgleich gelaufen, nicht 0): `id_switch_candidates`, `track_minutes`, `id_switch_candidates_per_track_minute` und `track_count`, `tracks_per_minute`, `mean_track_seconds`, `visible_share`, `stage_seconds` (`detection`, `tracking`, `render`; `null` = Stufe nicht gelaufen), `detections_reused`. Ohne Spuren oder ohne fps bleiben Kennzahlen `null`.
 - `team_report.json` (v1, `infrastructure/team_report.py`, Ausgabe von `evaluate-teams`): `versions` (python, numpy), `near_far_height_px` (Median der Boxhöhe), `parameters` (alle `team_*`), `clip_mappings` (je Clip: vorhergesagt -> gezählt als), `clip_groups` (je Clip: Boxen je Farbgruppe), `accuracy` (`total`, `per_class`, `near`, `far`; `null` ohne Boxen), `unknown` (Zahl, zählt als falsch), `confusion` (`total`, `near`, `far`; Zeilen = beschriftet, Spalten = vorhergesagt inkl. `unbekannt`). `team_report.md` ist die lesbare Fassung. Nicht Teil eines Laufs.
+- `teams.json` (v1, `domain/teams.py`, `infrastructure/stage_files.py`, Stufe 4, T5b1): `source`, `fps`, `frame_count`, `frame_size`, `stage_params` (Cache-Schlüssel: alle `team_*` plus `classifier`), `tracks_fingerprint`, `versions`, `note`, `tracks: [{id, label, uncertainty, samples, votes}]`. `label` = `team_a`, `team_b`, `goalkeeper`, `referee` oder `null` (weniger als `team_min_votes` bekannte Stimmen, nicht eine Zufallsklasse). `uncertainty` = 1 minus Anteil der Siegerklasse an den bekannten Stimmen (0 bis 1, `null` ohne bekannte Stimme). `samples` = Zahl klassifizierter Stichproben, `votes` = Klasse -> Anzahl plus `unbekannt`. Gleichstand entscheidet die Reihenfolge `team_a, team_b, goalkeeper, referee`. Eine fehlende oder abgeschnittene Datei lädt als `None`, eine falsche Version als `ValueError`.
 - Erlaubte Profilwerte (`domain/library.py`): `angle` = `tribuene_hoch`, `seitenlinie`, `ecke`, `hinter_tor`, `sonstige`; `camera_motion` = `fest`, `schwenkt`, `schwenkt_und_zoomt` (ohne Angabe gilt `unbekannt`, mit Ausgleich an).
 
 Parameter (`domain/settings.py`, Standardwerte, auch in `default.toml`):
@@ -212,6 +224,7 @@ Parameter (`domain/settings.py`, Standardwerte, auch in `default.toml`):
 - Tracking (T4): `detect_min_score` 0,1 (Filter bei der Erkennung), `track_high_score` 0,4 (ab hier darf eine Spur eröffnet werden), `track_match_iou` 0,3 (Mindest-Überlappung der Zuordnung), `track_max_lost_seconds` 1,5, `track_min_hits` 3 (Treffer bis zur Bestätigung), `track_edge_margin_px` 40 (Spur am Bildrand endet sofort).
 
 - Teamzuordnung (T5a, alle `team_*`, Startwerte geraten): `team_upper_body_fraction` 0,5, `team_min_box_height_px` 24, `team_min_box_width_px` 8, `team_grass_hue_range` [35, 85], `team_grass_min_saturation` 40, `team_cluster_count` 4, `team_outlier_max_share` 0,15, `team_min_cluster_distance` 0,2, `team_min_pixels` 30.
+- Teams je Spur (T5b1, Startwerte geraten): `team_samples_per_track` 8 (höchstens so viele gesehene Punkte je Spur), `team_min_votes` 3 (Mindestzahl bekannter Stimmen für eine Klasse).
 
 ## 5. Wo was liegt
 
@@ -232,8 +245,9 @@ data\ergebnis\t5a_h1\                  Teammessung Halbzeit 1: team_report.json,
 - `src/matchstats/`: Code nach Schichten (Abschnitt 1). Neu in T4: `domain/tracking.py`, `domain/id_switch.py`, `application/tracker.py`, `application/tracking_stages.py`, `application/track_summary.py`, `infrastructure/video_source.py`, `stage_files.py`, `json_io.py`, `track_render.py`, `tracking_job.py`. Neu in T4b: `domain/camera.py`, `application/camera_estimator.py`, `infrastructure/opencv_camera.py`; `camera_stage` in `tracking_stages.py`, `camera.json` in `stage_files.py`. Hilfsskript `tools/plot_camera_motion.py` (Diagramm, nicht Teil der Pipeline).
 - `tests/` (T4): `test_tracker_rules.py` (Zuordnungsregeln), `test_tracking_stages.py` (Stufen und Cache), `test_tracking_files.py` (Dateiformate), `test_track_settings.py`, `test_track_summary.py`, `test_id_switch_candidates.py`, `test_track_render.py`, `test_video_source.py`, `test_track_cli.py`, `test_cli_imports.py` (cv2/scipy erst beim `track`-Befehl geladen). T4b: `test_camera_domain.py`, `test_camera_estimator.py`, `test_camera_files.py`, `test_camera_settings.py`, `test_camera_stage.py`, `test_tracker_camera.py`. Dazu die älteren Tests und `test_architecture.py`.
 - `pyproject.toml`: Extra `track` = `scipy` (BSD) und `opencv-python` (Apache 2.0). Für den echten Lauf braucht `track` zusätzlich Extra `detect` (RF-DETR, siehe README Zeile 69). Ob eine frische Umgebung mit `.[track]` allein läuft, ist **unklar** (nicht geprüft).
-- `docs/entscheidungen/`: 0001 Schichten, 0002 Agententeam, 0003 Testset und Label Studio, 0004 Detektor und Kacheln, 0005 Bibliothek, 0006 Tracking in Stufen, 0007 ID-Wechsel-Kandidaten, 0008 Kamerabewegung (T4b), 0009 Teamzuordnung (T5a).
+- `docs/entscheidungen/`: 0001 Schichten, 0002 Agententeam, 0003 Testset und Label Studio, 0004 Detektor und Kacheln, 0005 Bibliothek, 0006 Tracking in Stufen, 0007 ID-Wechsel-Kandidaten, 0008 Kamerabewegung (T4b), 0009 Teamzuordnung (T5a), 0010 Teams je Spur (T5b1).
 - Neu in T5a: `domain/teams.py`, `application/team_classifier.py`, `application/team_evaluation.py`, `infrastructure/color_team_classifier.py`, `infrastructure/team_report.py`; erweitert `evaluation_job.py`, `image_io.py` (`save_team_overlay`), `settings.py`, `config_loader.py`, `default.toml`, `cli.py`. Tests: `test_teams_domain.py`, `test_color_team_classifier.py`, `test_team_evaluation.py`, `test_team_report.py`, `test_team_cli.py`.
+- Neu in T5b1: `application/team_stage.py`; erweitert `domain/teams.py`, `infrastructure/stage_files.py` (`load_teams`/`save_teams`), `domain/settings.py`, `default.toml`. Tests: `test_teams_vote.py` (Abstimmung, Stichprobenwahl, Fingerabdruck), `test_team_crop.py` (Ausschnitt, gleiche Vorhersage wie Ganzbild), `test_team_stage.py` (Stufe und Cache), `test_stage_files_teams.py` (Dateiformat).
 
 ## 6. Noch nicht umgesetzt oder unklar
 
@@ -255,4 +269,5 @@ data\ergebnis\t5a_h1\                  Teammessung Halbzeit 1: team_report.json,
 - **Bewusst verschoben:** Verweis statt Kopie (`--link`), Deinterlacen und Schneiden beim Import, Oberfläche, Datenbank.
 - **Messung:** eine Perspektive, ein Spiel (Testset), Score-Schwelle für die Messung fest 0,3.
 - **Teamzuordnung (T5a): nur Messung auf beschrifteten Boxen, nicht auf Spuren.** Basislinie Halbzeit 1 (clip1 bis clip3): gesamt 66,1 %, nah 73,1 %, fern 59,2 %; team_a 84,4 %, team_b 66,9 %, Torwart 10,5 %, Schiedsrichter 0 %; 75 Boxen unbekannt. Torwart und Schiedsrichter sind praktisch nicht getrennt (nur über Gruppengröße unterschieden). In allen Clips gibt es eine dritte große Farbgruppe (87 bis 133 Boxen), Ursache **offen**. Parameter geraten. Die Zuordnung je Clip nutzt die Wahrheit (Orakel), die Zahlen sind optimistisch. Die Verbesserung ist als Punkt für T5b oder später vorgesehen. Siehe `docs/entscheidungen/0009-teamzuordnung-t5a.md`.
-- **Teamzuordnung auf Spuren (T5b), Ausgabe (T6), Bericht (T7):** geplant, nicht vorhanden. `teams.json` existiert noch nicht.
+- **Teams je Spur (T5b1): Stufe vorhanden, aber nicht an `matchstats track` angebunden** (kein CLI-Befehl, keine Zeile in `summary.json`, kein Render in Teamfarbe; kommt mit T5b2). Handlauf clip1 (run-005): 73 Spuren, team_a 24, team_b 49, Torwart 0, Schiedsrichter 0, `null` 0; **Anteil Spuren mit wechselnder Klasse 45,2 %** (573 Stichproben, 14,6 s, Cache-Treffer 0,38 s). Das ist hoch (Schwelle 30 % geraten); ob die Schwelle oder das Verfahren der Maßstab ist, ist **offen** und vor T5b2 zu klären. Gruppierung je Spur-Stichproben statt je Bild wie in T5a, daher ist das Gewicht von `team_outlier_max_share` verändert (Messrisiko). Siehe `docs/entscheidungen/0010-teams-je-spur-t5b1.md`.
+- **Ausgabe (T6), Bericht (T7):** geplant, nicht vorhanden.

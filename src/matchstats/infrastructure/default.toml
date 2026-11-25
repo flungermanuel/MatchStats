@@ -62,6 +62,10 @@ team_outlier_max_share = 0.15
 team_min_cluster_distance = 0.2
 # Mindestzahl Nicht-Rasen-Pixel im Oberkörper, sonst "unbekannt".
 team_min_pixels = 30
+# Teams je Spur (T5b1): höchstens so viele gesehene Punkte je Spur werden klassifiziert, und eine
+# Spur bekommt nur eine Klasse, wenn mindestens so viele bekannte Stimmen vorliegen (sonst null).
+team_samples_per_track = 8
+team_min_votes = 3
 
 # Aufnahme-Profil "camera_motion" eines Clips -> Parameter. Nur Daten, keine Logik:
 # neue Profilwerte kommen durch einen weiteren Eintrag dazu. "unbekannt" gilt ohne Profilwert.

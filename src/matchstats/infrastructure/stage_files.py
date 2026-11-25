@@ -7,12 +7,14 @@ from pathlib import Path
 from matchstats.domain.camera import CAMERA_SCHEMA_VERSION, CameraDoc, CameraMotion
 from matchstats.domain.detection import Detection
 from matchstats.domain.result import RunResult
+from matchstats.domain.teams import TEAMS_SCHEMA_VERSION, TeamsDoc, TrackTeam
 from matchstats.domain.tracking import DETECTIONS_SCHEMA_VERSION, DetectionsDoc, FrameDetections
 from matchstats.infrastructure.json_io import write_json_atomic
 from matchstats.infrastructure.result_store import save_result
 
 DETECTIONS_FILE = "detections.json"
 CAMERA_FILE = "camera.json"
+TEAMS_FILE = "teams.json"
 
 
 class FileStageStore:
@@ -86,6 +88,48 @@ class FileStageStore:
         data = asdict(doc)
         data["frames"] = data.pop("motions")  # Matrizen werden zu verschachtelten Listen
         write_json_atomic(self._dir / CAMERA_FILE, data)
+
+    def load_teams(self) -> TeamsDoc | None:
+        """None, wenn die Datei fehlt oder unvollständig ist; falsche Version -> ValueError."""
+        path = self._dir / TEAMS_FILE
+        if not path.is_file():
+            return None
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except ValueError:
+            return None  # abgeschnitten: neu berechnen
+        version = data.get("schema_version") if isinstance(data, dict) else None
+        if version != TEAMS_SCHEMA_VERSION:
+            raise ValueError(
+                f"{TEAMS_FILE}: schema_version {version!r} wird nicht unterstützt, "
+                f"erwartet {TEAMS_SCHEMA_VERSION}"
+            )
+        try:
+            return TeamsDoc(
+                source=data["source"],
+                fps=data["fps"],
+                frame_count=data["frame_count"],
+                frame_size=(data["frame_size"][0], data["frame_size"][1]),
+                stage_params=data["stage_params"],
+                tracks_fingerprint=data["tracks_fingerprint"],
+                versions=data["versions"],
+                note=data["note"],
+                tracks=tuple(
+                    TrackTeam(
+                        id=t["id"],
+                        label=t["label"],
+                        uncertainty=t["uncertainty"],
+                        samples=t["samples"],
+                        votes=t["votes"],
+                    )
+                    for t in data["tracks"]
+                ),
+            )
+        except (KeyError, TypeError, IndexError):
+            return None
+
+    def save_teams(self, doc: TeamsDoc) -> None:
+        write_json_atomic(self._dir / TEAMS_FILE, asdict(doc))
 
     def save_tracks(self, result: RunResult) -> None:
         save_result(result, self._dir)

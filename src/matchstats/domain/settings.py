@@ -48,6 +48,9 @@ class Settings:
     team_outlier_max_share: float = 0.15
     team_min_cluster_distance: float = 0.2
     team_min_pixels: int = 30
+    # Teams je Spur (T5b1): Stichproben je Spur und Mindestzahl bekannter Stimmen.
+    team_samples_per_track: int = 8
+    team_min_votes: int = 3
 
     def __post_init__(self) -> None:
         if self.detect_every < 1:
@@ -102,3 +105,7 @@ class Settings:
             raise ValueError("team_min_cluster_distance muss größer als 0 sein")
         if self.team_min_pixels < 1:
             raise ValueError("team_min_pixels muss mindestens 1 sein")
+        if self.team_samples_per_track < 1:
+            raise ValueError("team_samples_per_track muss mindestens 1 sein")
+        if self.team_min_votes < 1:
+            raise ValueError("team_min_votes muss mindestens 1 sein")

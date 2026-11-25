@@ -15,6 +15,7 @@ from matchstats.application.tracker import Tracker
 from matchstats.domain.camera import NO_CAMERA, CameraDoc, CameraPath
 from matchstats.domain.result import RunResult
 from matchstats.domain.settings import Settings
+from matchstats.domain.teams import TeamsDoc
 from matchstats.domain.tracking import DetectionsDoc, FrameDetections
 
 
@@ -59,7 +60,7 @@ def _stage_params(detector_name: str, settings: Settings) -> dict[str, Any]:
 
 
 def _is_reusable(
-    doc: DetectionsDoc | CameraDoc, source: FrameSource, params: dict[str, Any]
+    doc: DetectionsDoc | CameraDoc | TeamsDoc, source: FrameSource, params: dict[str, Any]
 ) -> bool:
     """Gleiche Parameter und dasselbe Video (Name, Bildanzahl, Bildgröße)."""
     return (
